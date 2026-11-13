@@ -1,0 +1,21 @@
+# Normalise line endings. The game and the Script Extender read LF fine.
+* text=auto eol=lf
+
+# Windows scripts keep CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary game and media files
+*.pak binary
+*.lsf binary
+*.dds binary
+*.png binary
+*.jpg binary
+*.webp binary
+*.gif binary
+*.zip binary
+
+# GitHub: collapse the generated flag table in diffs; show .lsx as XML
+Mods/CompanionRoadmap/ScriptExtender/Lua/Data/Flags.lua linguist-generated=true
+*.lsx linguist-language=XML

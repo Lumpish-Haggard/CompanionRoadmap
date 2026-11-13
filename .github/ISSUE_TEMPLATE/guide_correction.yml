@@ -1,0 +1,68 @@
+name: Guide correction
+description: A step, requirement or warning is wrong or missing, or the roadmap does not detect something.
+title: "[Guide] "
+labels: ["guide-data"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Corrections are the most valuable contribution to this mod. Please include a **source** so the change can be verified.
+
+  - type: dropdown
+    id: companion
+    attributes:
+      label: Companion
+      options:
+        - Shadowheart
+        - Minthara
+        - Karlach
+        - Lae'zel
+        - Astarion
+        - Gale
+        - Wyll
+        - Halsin
+        - Jaheira
+        - Minsc
+        - Points of no return / general
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem?
+      options:
+        - The guide text is wrong
+        - A step or warning is missing
+        - A step is not detected (stays open after I did it)
+        - A step is detected wrongly (done or missed when it should not be)
+    validations:
+      required: true
+
+  - type: input
+    id: step
+    attributes:
+      label: Step
+      description: The step title as shown in the window, or its id from `!roadmap steps <Companion>`.
+
+  - type: textarea
+    id: details
+    attributes:
+      label: What is wrong, and what should it say?
+    validations:
+      required: true
+
+  - type: textarea
+    id: source
+    attributes:
+      label: Source
+      description: How do you know? A bg3.wiki page, a video, or what you did and saw in game.
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Tracker output (for detection problems)
+      description: Output of `!roadmap steps <Companion>` typed in the server console while the affected save is loaded.
+      render: text

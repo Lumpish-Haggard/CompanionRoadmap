@@ -1,0 +1,28 @@
+# Game data extracted from your own install (regenerate with tools/extract_game_data.py).
+# Never commit it: it is Larian's data and several megabytes.
+tools/.cache/
+
+# Packaging output
+build/
+dist/
+*.pak
+
+# Nexus Mods page drafts (kept out of the repository)
+nexus/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log

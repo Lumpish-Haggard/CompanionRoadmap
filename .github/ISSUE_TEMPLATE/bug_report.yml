@@ -1,0 +1,77 @@
+name: Bug report
+description: Something in the mod does not work (the window, the hotkey, an error in the console).
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! If a guide step is wrong, missing or not detected, please use the **Guide correction** form instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Load a save in Act 2
+        2. Press F7
+        3. ...
+
+  - type: input
+    id: mod-version
+    attributes:
+      label: Mod version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: se-version
+    attributes:
+      label: Script Extender version
+      description: Shown at the top of the Script Extender console.
+      placeholder: "v33"
+
+  - type: input
+    id: game-version
+    attributes:
+      label: Game version
+      placeholder: "Patch 8 Hotfix 10"
+
+  - type: dropdown
+    id: mcm
+    attributes:
+      label: Is Mod Configuration Menu installed?
+      options:
+        - "Yes"
+        - "No"
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Game mode
+      options:
+        - Single player
+        - Multiplayer (host)
+        - Multiplayer (client)
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output
+      description: Script Extender console lines that mention `CompanionRoadmap`, plus the output of `!roadmap` typed in the server console.
+      render: text
+
+  - type: textarea
+    id: mods
+    attributes:
+      label: Other mods
+      description: Your load order, or at least the mods that touch the UI, companions or romance.

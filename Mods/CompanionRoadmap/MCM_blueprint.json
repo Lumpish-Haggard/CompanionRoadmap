@@ -1,0 +1,123 @@
+{
+  "SchemaVersion": 1,
+  "ModName": "Companion & Romance Roadmap",
+  "Tabs": [
+    {
+      "TabId": "roadmap",
+      "TabName": "Roadmap",
+      "Sections": [
+        {
+          "SectionId": "access",
+          "SectionName": "Open the roadmap",
+          "Settings": [
+            {
+              "Id": "open_roadmap",
+              "Name": "Open the roadmap",
+              "Type": "event_button",
+              "Description": "Opens the Companion & Romance Roadmap overlay.",
+              "Options": {
+                "Label": "Open roadmap"
+              }
+            },
+            {
+              "Id": "toggle_roadmap",
+              "Name": "Toggle roadmap",
+              "Type": "keybinding_v2",
+              "Default": {
+                "Keyboard": {
+                  "Key": "F7",
+                  "ModifierKeys": []
+                }
+              },
+              "Description": "Opens or closes the roadmap overlay. F8 is avoided on purpose: it is the game's Quickload key.",
+              "Options": {
+                "ShouldTriggerOnRepeat": false,
+                "ShouldTriggerOnKeyUp": false,
+                "ShouldTriggerOnKeyDown": true,
+                "PreventAction": false
+              }
+            }
+          ]
+        },
+        {
+          "SectionId": "display",
+          "SectionName": "Display",
+          "Settings": [
+            {
+              "Id": "spoilers",
+              "Name": "Spoilers for later acts",
+              "Type": "enum",
+              "Default": "Show everything",
+              "Description": "How much to reveal about steps that belong to an act you have not reached yet.",
+              "Options": {
+                "Choices": [
+                  "Show everything",
+                  "Titles only for future acts",
+                  "Hide future acts"
+                ]
+              }
+            },
+            {
+              "Id": "hide_completed",
+              "Name": "Hide completed steps",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Hide steps that are done or do not apply to your playthrough."
+            },
+            {
+              "Id": "romance_only",
+              "Name": "Romance steps only",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Only show romance-related steps."
+            },
+            {
+              "Id": "show_tracking",
+              "Name": "Show how steps are tracked",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "Show the game flag or journal entry each step is detected from."
+            },
+            {
+              "Id": "window_opacity",
+              "Name": "Window opacity",
+              "Type": "enum",
+              "Default": "95%",
+              "Description": "Background opacity of the roadmap window.",
+              "Options": {
+                "Choices": [
+                  "100%",
+                  "95%",
+                  "90%",
+                  "85%",
+                  "80%",
+                  "70%"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "SectionId": "notifications",
+          "SectionName": "Notifications",
+          "Settings": [
+            {
+              "Id": "notifications",
+              "Name": "Step notifications",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Show a short notice when a tracked step is completed or missed."
+            },
+            {
+              "Id": "notify_all",
+              "Name": "Notify for every step",
+              "Type": "checkbox",
+              "Default": false,
+              "Description": "By default only romance and important steps produce notifications."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

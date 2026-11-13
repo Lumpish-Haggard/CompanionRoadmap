@@ -1,0 +1,7 @@
+{
+  "RequiredVersion": 25,
+  "ModTable": "CompanionRoadmap",
+  "FeatureFlags": [
+    "Lua"
+  ]
+}

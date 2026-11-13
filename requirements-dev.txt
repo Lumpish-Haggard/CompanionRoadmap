@@ -1,0 +1,2 @@
+# Only needed for tools/test_harness.py (the mod itself has no Python dependency)
+lupa>=2.0

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Script Extender problems
+    url: https://github.com/Norbyte/bg3se/issues
+    about: Crashes or errors that also happen without this mod belong to the Script Extender's issue tracker.
+  - name: Mod Configuration Menu problems
+    url: https://github.com/AtilioA/BG3-MCM/issues
+    about: Problems with the MCM window itself (not this mod's settings page).

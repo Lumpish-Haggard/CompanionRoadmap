@@ -7,7 +7,7 @@
         <node id="Conflicts" />
         <node id="Dependencies" />
         <node id="ModuleInfo">
-          <attribute id="Author" type="LSString" value="BG3TrackIt" />
+          <attribute id="Author" type="LSString" value="LumpishHaggard" />
           <attribute id="CharacterCreationLevelName" type="FixedString" value="" />
           <attribute id="Description" type="LSString" value="In-game overlay that tracks every companion's story, romance steps, approval and points of no return live from your save. Requires the Script Extender." />
           <attribute id="FileSize" type="uint64" value="0" />

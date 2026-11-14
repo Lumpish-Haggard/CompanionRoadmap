@@ -10,6 +10,10 @@ dist/
 # Nexus Mods page drafts (kept out of the repository)
 nexus/
 
+# Local research databases (wiki mirrors). Large, and their text is licensed
+# by the wikis' contributors: never commit or ship them.
+data/
+
 # Python
 __pycache__/
 *.pyc

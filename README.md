@@ -11,13 +11,14 @@
 
 [Download](../../releases/latest) ·
 [Report a bug or wrong guide info](../../issues/new/choose) ·
+[What is planned](docs/ROADMAP.md) ·
 [Contributing](CONTRIBUTING.md) ·
 [Changelog](CHANGELOG.md)
 
 </div>
 
 > [!NOTE]
-> **Work in progress.** This is the first public release. The guide and its detection will keep improving, and you may run into bugs or steps that are not detected yet. Please [report them](../../issues/new/choose): every report makes the roadmap better for everyone.
+> **Work in progress.** This is the first public release. The guide and its detection will keep improving, and you may run into bugs or steps that are not detected yet. Please [report them](../../issues/new/choose): every report makes the roadmap better for everyone. What comes next is in the [project plan](docs/ROADMAP.md).
 
 ---
 

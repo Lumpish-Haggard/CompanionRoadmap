@@ -25,16 +25,16 @@ CR.Guides.Register {
     },
 
     rules = {
-        "Pull him out of the rune circle on the first or second try - failing both locks him out.",
-        "Give him at least ONE magic item when he first asks - refusing makes him leave. (The 2nd and 3rd are optional.)",
-        "If he dies, revive him within 3 long rests or his orb detonates (game over).",
-        "Talk to Elminster - attacking him makes Gale leave at the end of Act 2.",
+        { act = 1, "Pull him out of the rune circle on the first or second try - failing both locks him out." },
+        { act = 1, "Give him at least ONE magic item when he first asks - refusing makes him leave. (The 2nd and 3rd are optional.)" },
+        { act = 1, "If he dies, revive him within 3 long rests or his orb detonates (game over)." },
+        { act = 2, "Talk to Elminster - attacking him makes Gale leave at the end of Act 2." },
     },
     romanceNotes = {
         "Act 1: at 36+ approval he shows you Mystra's portrait and teaches you to touch the Weave; imagine kissing him or walking hand in hand.",
-        "The camp celebration can also start his romance.",
+        { act = 1, "The camp celebration can also start his romance." },
         "Act 2: after reaching the Moonrise Towers waypoint, interact with his projection at camp for the starry-sky night -> Partnered next morning.",
-        "That night must happen before you go down into the Mind Flayer Colony.",
+        { act = 2, "That night must happen before you go down into the Mind Flayer Colony." },
         "Act 3: the Crown of Karsus conversation shapes the romance - telling him you love him as he is keeps him human.",
     },
 

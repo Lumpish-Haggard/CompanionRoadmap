@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Client/StateClient.lua
 -- Receives roadmap snapshots and notifications from the server, and sends the
--- player's requests (subscribe, refresh, manual check-offs).
+-- player's requests (subscribe, refresh, manual check-offs, report file).
 -- =============================================================================
 
 CR.Client = CR.Client or {}
@@ -33,6 +33,27 @@ function Client.SetOverride(stepId, value)
     return send(CR.Net.Override, { id = stepId, value = value and true or false })
 end
 
+--- Asks the server to write the report file; `onDone(ok, text)` gets the outcome.
+function Client.RequestReport(onDone)
+    Client.reportDone = onDone
+    if not send(CR.Net.Report, {}) and onDone then
+        onDone(false, "The game is not ready yet - load a save first.")
+    end
+end
+
+local function onReport(msg)
+    local done = Client.reportDone
+    Client.reportDone = nil
+    if not done or type(msg) ~= "table" then return end
+    if msg.ok then
+        -- the file is written by the server, i.e. on the host's PC in multiplayer
+        local file = string.gsub(tostring(msg.file), "/", "\\")
+        done(true, "Saved (" .. tostring(msg.info) .. "): %LOCALAPPDATA%\\Larian Studios\\Baldur's Gate 3\\Script Extender\\" .. file)
+    else
+        done(false, tostring(msg.info or "The report could not be written."))
+    end
+end
+
 local function onState(msg)
     if type(msg) ~= "table" then return end
     if msg.p ~= nil and msg.p ~= CR.Protocol then
@@ -53,6 +74,7 @@ function Client.Init()
     if not CR.Net.Ready then return end
     CR.Net.State:SetHandler(function(msg) CR.Guard("State", onState, msg) end)
     CR.Net.Toast:SetHandler(function(msg) CR.Guard("Toast", onToast, msg) end)
+    CR.Net.Report:SetHandler(function(msg) CR.Guard("Report", onReport, msg) end)
 
     -- Announce ourselves once the game is running so the server can send toasts
     -- even before the overlay has been opened.

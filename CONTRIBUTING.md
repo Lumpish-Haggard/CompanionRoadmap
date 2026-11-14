@@ -3,7 +3,7 @@
 Thanks for helping. This project lives or dies by the accuracy of its guide, so the most useful contributions are:
 
 1. **Guide corrections**: a step, requirement or warning that is wrong or missing. Use the *Guide correction* issue form, or open a pull request.
-2. **Detection reports**: "I did X and the roadmap did not notice" (or noticed something that did not happen). Include the output of `!roadmap steps <Companion>` from the server console.
+2. **Detection reports**: "I did X and the roadmap did not notice" (or noticed something that did not happen). Attach the report file (*Options > Create a report file*, or `!roadmap report` in the server console).
 3. **Code and documentation**: bug fixes, UI polish, tooling.
 
 Please read the [Code of Conduct](CODE_OF_CONDUCT.md) first.

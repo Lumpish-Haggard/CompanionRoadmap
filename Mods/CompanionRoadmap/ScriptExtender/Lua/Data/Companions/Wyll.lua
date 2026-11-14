@@ -17,6 +17,8 @@ CR.Guides.Register {
     romanceable = true,
 
     recruited = G("GLO_Origin_PartOfTheTeam_Wyll"),
+    -- bg3.wiki (Wyll): one of the few companions who can be revived before joining
+    revivable = "If he fell in the goblin attack on the Grove gate, a Scroll of Revivify brings him back and he can be recruited as usual.",
     left = { Q(WY, "CompanionMurdered"), Q(WY, "CompanionLowRelation"), Q(WY, "CompanionHostile"), Q(WY, "MizoraDied") },
     romance = {
         dating = P("ORI_State_DatingWithWyll"),
@@ -26,14 +28,14 @@ CR.Guides.Register {
     },
 
     rules = {
-        "His romance can ONLY start at the Tiefling celebration in Act 1 (10+ approval).",
-        "Siding with the goblins (raiding the Grove) makes Wyll leave for good.",
-        "Rescue Mizora in the Mind Flayer Colony - if she dies, Wyll is dragged to Avernus as a lemure.",
-        "Keep Duke Ravengard alive in Act 3 - if he dies, Wyll breaks up with you.",
+        { act = 1, "His romance can ONLY start at the Tiefling celebration in Act 1 (10+ approval)." },
+        { act = 1, "Siding with the goblins (raiding the Grove) makes Wyll leave for good." },
+        { act = 2, "Rescue Mizora in the Mind Flayer Colony - if she dies, Wyll is dragged to Avernus as a lemure." },
+        { act = 3, "Keep Duke Ravengard alive in Act 3 - if he dies, Wyll breaks up with you." },
     },
     romanceNotes = {
         "Act 1: at the Tiefling celebration, find him by the water and flirt (dance, guessing game or ask for a kiss). 'There will be another time for us' = Dating.",
-        "He turns you down if you already agreed to another companion's night, are double-dating, or have under 10 approval.",
+        { act = 1, "He turns you down if you already agreed to another companion's night, are double-dating, or have under 10 approval." },
         "Act 2: 20+ approval, dating him, and a visit to Last Light Inn or Moonrise -> the dance at camp -> Partnered.",
         "Act 3: after his father's fate is settled (alive), he proposes on the banks of the Chionthar.",
     },

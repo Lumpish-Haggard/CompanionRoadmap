@@ -28,16 +28,16 @@ CR.Guides.Register {
     },
 
     rules = {
-        "Never tell the Gur monster hunter (Gandrel) where your camp is or hand Astarion over - he is captured and gone.",
-        "During the bite night, stop him before he drinks you dry (two failed stops = death).",
-        "In Act 2, let Astarion make his own choice with Araj Oblodra - pushing him ends the romance.",
-        "At Cazador's ritual: refusing or failing to talk him down makes him leave; helping him ascend makes him a Vampire Ascendant.",
+        { act = 1, "Never tell the Gur monster hunter (Gandrel) where your camp is or hand Astarion over - he is captured and gone." },
+        { act = 1, "During the bite night, stop him before he drinks you dry (two failed stops = death)." },
+        { act = 2, "In Act 2, let Astarion make his own choice with Araj Oblodra - pushing him ends the romance." },
+        { act = 3, "At Cazador's ritual: refusing or failing to talk him down makes him leave; helping him ascend makes him a Vampire Ascendant." },
     },
     romanceNotes = {
         "Act 1: at 40+ approval (before the Grove is resolved) he offers to spend the night with you.",
-        "Or accept him at the camp celebration (at most one other active romance).",
+        { act = 1, "Or accept him at the camp celebration (at most one other active romance)." },
         "Act 2: the Araj Oblodra scene in Moonrise, then his confession on the next long rest -> Partnered if you support him.",
-        "No Araj scene? Killing Raphael's old enemy with 70+ approval triggers the same confession.",
+        { act = 2, "No Araj scene? Killing Raphael's old enemy with 70+ approval triggers the same confession." },
         "Act 3: after Cazador, a final scene - at his grave (spawn) or the offer to become his spawn (ascended).",
     },
 

@@ -79,6 +79,20 @@
               "Description": "Show the game flag or journal entry each step is detected from."
             },
             {
+              "Id": "portraits",
+              "Name": "Companion portraits",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Show a small picture next to each companion (the game's own Photo Mode stickers). Turn this off if the pictures do not appear."
+            },
+            {
+              "Id": "esc_closes",
+              "Name": "Esc closes the roadmap",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "Pressing Esc while the roadmap is open closes it instead of opening the game menu."
+            },
+            {
               "Id": "window_opacity",
               "Name": "Window opacity",
               "Type": "enum",

@@ -65,22 +65,28 @@ local function osiInt(fn, ...)
     return nil
 end
 
-local function dbHasRows(dbName, ...)
+--- Rows of an Osiris database. Pass one argument per column; nil means "any value"
+--- (table.pack keeps trailing nils, which a plain { ... } would drop).
+local function dbRows(dbName, ...)
     local db = Osi[dbName]
-    if db == nil then return false end
-    local args = { ... }
-    local ok, rows = pcall(function() return db:Get(table.unpack(args)) end)
-    return ok and type(rows) == "table" and #rows > 0
+    if db == nil then return nil end
+    local args = table.pack(...)
+    local ok, rows = pcall(function() return db:Get(table.unpack(args, 1, args.n)) end)
+    if ok and type(rows) == "table" then return rows end
+    return nil
+end
+
+local function dbHasRows(dbName, ...)
+    local rows = dbRows(dbName, ...)
+    return rows ~= nil and #rows > 0
 end
 
 local function dbFirstValue(dbName, ...)
-    local db = Osi[dbName]
-    if db == nil then return nil end
-    local args = { ... }
-    local ok, rows = pcall(function() return db:Get(table.unpack(args)) end)
-    if ok and type(rows) == "table" and rows[1] then return rows[1][1] end
+    local rows = dbRows(dbName, ...)
+    if rows and rows[1] then return rows[1][1] end
     return nil
 end
+E.DbRows = dbRows
 E.DbHasRows = dbHasRows
 E.DbFirstValue = dbFirstValue
 
@@ -272,6 +278,16 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
     if not lost and ctx:IsPermaDefeated(comp) then lost = true end
     local isYou = ctx.avatar ~= nil and CR.Guid(ctx.avatar) == comp.uuid
 
+    -- Died before ever joining: in most cases such a companion can no longer be
+    -- revived or recruited (bg3.wiki "Dead"). The data marks the exceptions with
+    -- `revivable`. A knocked-out Minthara or Minsc is not dead.
+    local dead = ctx:IsDead(comp)
+    local why = nil
+    if not lost and not isYou and dead and not comp.revivable
+        and not ctx:Recruited(comp) and not ctx:KnockedOut(comp) then
+        lost, why = true, "died"
+    end
+
     local visiting = {}
     local function eval(step)
         local cached = result[step.id]
@@ -356,7 +372,8 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
         lost = lost,
         you = isYou,
         rec = ctx:Recruited(comp),
-        dead = ctx:IsDead(comp),
+        dead = dead,
+        why = why,          -- "died": lost because they died before joining
     }
     if not isYou and ctx.avatar then
         local a = osiInt(Osi.GetApprovalRating, comp.uuid, ctx.avatar)
@@ -413,5 +430,5 @@ function E.BuildSnapshot(avatar, overrides)
             snap.comps[comp.id] = { error = true }
         end
     end
-    return snap
+    return snap, ctx
 end

@@ -118,6 +118,11 @@ local FLAGS = {
 -- Fonts the extender registers itself (IMGUIManager::InitializeUI); others come from Ext.IMGUI.LoadFont.
 local BUILTIN_FONTS = { Tiny = true, Small = true, Medium = true, Default = true, Large = true, Big = true }
 Mock.Fonts = {}
+-- Texture resources AddImage may use: GUID -> true. The harness fills this from the
+-- mod's texture bank (Public/CompanionRoadmap/Content/UI/[PAK]_UI/_merged.lsx).
+Mock.Textures = {}
+-- Localisation handles -> text, for Ext.Loca.GetTranslatedString
+Mock.Loca = {}
 
 local CLASSES = {
     Renderable = { props = { "Handle", "Parent", "ParentElement", "UserData" }, funcs = { "Destroy" } },
@@ -156,6 +161,7 @@ local CLASSES = {
     Checkbox = { base = "StyledRenderable", props = { "Checked", "OnChange" } },
     Combo = { base = "StyledRenderable", props = { "Options", "SelectedIndex", "Flags", "OnChange" }, flags = { FLAGS.Combo } },
     ProgressBar = { base = "StyledRenderable", props = { "Value", "Size", "Overlay" } },
+    Image = { base = "StyledRenderable", props = { "ImageData", "Border", "Tint" } },
     Table = { base = "TreeParent",
         props = { "Columns", "Flags", "FreezeRows", "FreezeCols", "ShowHeader", "AngledHeader", "OptimizedDraw",
             "ColumnDefs", "Sorting", "Size", "OnSortChanged" },
@@ -172,10 +178,10 @@ local ADD_TYPES = {
     AddBulletText = "BulletText", AddSeparatorText = "SeparatorText", AddSpacing = "Spacing",
     AddNewLine = "NewLine", AddSeparator = "Separator", AddCheckbox = "Checkbox", AddCombo = "Combo",
     AddProgressBar = "ProgressBar", AddTabItem = "TabItem", AddTable = "Table", AddRow = "TableRow",
-    AddCell = "TableCell", AddPopup = "Popup",
+    AddCell = "TableCell", AddPopup = "Popup", AddImage = "Image",
 }
 -- element types created without a label argument
-local NO_LABEL = set { "Spacing", "NewLine", "Separator", "ProgressBar", "TableRow", "TableCell" }
+local NO_LABEL = set { "Spacing", "NewLine", "Separator", "ProgressBar", "TableRow", "TableCell", "Image" }
 local INTERACTIVE = set { "Button", "Checkbox", "Selectable", "Tree", "CollapsingHeader", "TabItem", "Combo",
     "ChildWindow", "TabBar", "Table", "Popup" }
 
@@ -354,7 +360,18 @@ local function method(e, name)
                     fail(string.format("AddCell: row already has %d cells for a %d-column table", #self.__children, cols), 2)
                 end
             end
+            if addType == "Image" then
+                -- AddImage(iconOrTexture, size?, uv0?, uv1?): the first argument is not a label
+                if type(label) ~= "string" or not Mock.Textures[label] then
+                    fail("AddImage: '" .. tostring(label) .. "' is not a texture resource declared by the mod", 2)
+                end
+                if a ~= nil and (type(a) ~= "table" or #a ~= 2) then fail("AddImage: size must be {w,h}", 2) end
+            end
             local child = newElement(addType, needsLabel and label or "", self)
+            if addType == "Image" then
+                child.__values.ImageData = { TextureResource = label, Size = a or { 0, 0 } }
+                child.__values.Tint = { 1, 1, 1, 1 }
+            end
             if addType == "Checkbox" then child.__values.Checked = a and true or false end
             if addType == "ProgressBar" then child.__values.Value = 0 end
             if addType == "Combo" then child.__values.Options = {} child.__values.SelectedIndex = 0 end
@@ -388,6 +405,9 @@ Element.__newindex = function(e, key, value)
     if key == "Scaling" and value ~= "Absolute" and value ~= "Scaled" then fail("bad Scaling value", 2) end
     if key == "Options" then
         for _, o in ipairs(value) do checkLatin1(o, "Combo option") end
+    end
+    if key == "Tint" and (type(value) ~= "table" or #value ~= 4) then
+        fail("Tint expects {r,g,b,a}", 2)
     end
     if (key == "Size" or key == "PositionOffset") and (type(value) ~= "table" or #value ~= 2) then
         fail(key .. " expects {x,y}", 2)
@@ -429,7 +449,8 @@ end
 
 local OSIRIS_EVENTS = {
     FlagSet = 3, FlagCleared = 3, QuestUpdateUnlocked = 3, ApprovalRatingChanged = 3,
-    Died = 1, CharacterJoinedParty = 1, CharacterLeftParty = 1, LevelGameplayStarted = 2,
+    Died = 1, Resurrected = 1, CharacterJoinedParty = 1, CharacterLeftParty = 1, LevelGameplayStarted = 2,
+    DialogEnded = 2,
 }
 Mock.OsirisListeners = {}
 Mock.ConsoleCommands = {}
@@ -487,6 +508,12 @@ Ext.Net = {
         return ch
     end,
 }
+Ext.Loca = {
+    GetTranslatedString = function(handle, fallback)
+        if type(handle) ~= "string" then error("GetTranslatedString: handle must be a string", 2) end
+        return Mock.Loca[handle] or fallback or ""
+    end,
+}
 Ext.Events = {}
 for _, n in ipairs({ "SessionLoaded", "GameStateChanged", "KeyInput", "ResetCompleted", "Tick" }) do Ext.Events[n] = newEvent(n) end
 Ext.ModEvents = {}
@@ -526,6 +553,13 @@ function Mock.Env() return modEnv end
 function Mock.FindByLabel(sub)
     for _, e in ipairs(Mock.Elements) do
         if not e.__destroyed and string.find(e.__values.Label or "", sub, 1, true) then return e end
+    end
+    return nil
+end
+--- The live button / selectable / checkbox with exactly this label (tests click it).
+function Mock.FindClickable(label)
+    for _, e in ipairs(Mock.Elements) do
+        if not e.__destroyed and e.__values.Label == label and e.__values.OnClick then return e end
     end
     return nil
 end

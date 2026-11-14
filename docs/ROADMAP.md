@@ -33,6 +33,10 @@ This is a plan, not a promise. Order and scope will change with what players rep
 - Notices can appear **during a conversation**; they should wait until it ends.
 - Small layout issues, and Esc should close the window.
 - **Report file**: one button (or `!roadmap report`) writes what the tracker sees to a file you can attach to a bug report. Those files also become regression tests.
+- **First-run question** about spoilers: until it is answered, nothing from later acts is shown.
+- **Companion portraits** arrive early as an experiment: the game's own Photo Mode stickers, referenced from the game files rather than shipped.
+
+All of the above is built and covered by tests; see the [changelog](../CHANGELOG.md). What it still needs is play time in real saves.
 
 ## 1.1: trust
 

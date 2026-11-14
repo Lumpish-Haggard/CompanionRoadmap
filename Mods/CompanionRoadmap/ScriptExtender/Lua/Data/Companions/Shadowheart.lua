@@ -31,31 +31,35 @@ CR.Guides.Register {
     },
 
     rules = {
-        "Never side with Lae'zel when the two of them fight at camp - Shadowheart leaves for good.",
-        "Bring her (and the Spear of Night) into the Shadowfell. Entering without her, or without the spear, makes her leave.",
-        "Never hand Nightsong to Balthazar, and never surrender Shadowheart to Viconia in Act 3.",
-        "Let her make the Nightsong decision herself - deciding for her ends the relationship.",
+        { act = 1, "Never side with Lae'zel when the two of them fight at camp - Shadowheart leaves for good." },
+        { act = 2, "Bring her (and the Spear of Night) into the Shadowfell. Entering without her, or without the spear, makes her leave." },
+        { act = 2, "Never hand Nightsong to Balthazar." },
+        { act = 3, "Never surrender Shadowheart to Viconia." },
+        { act = 2, "Let her make the Nightsong decision herself - deciding for her ends the relationship." },
     },
     romanceNotes = {
         "Act 1: accept her bottle of wine at the camp celebration (20+ approval, at most one other active romance).",
-        "No party? At 40+ approval ask whether you 'missed a chance to truly connect' - works until you enter the Shadowfell.",
+        { act = 1, "No party? At 40+ approval ask whether you 'missed a chance to truly connect' - works until you enter the Shadowfell." },
         "Act 2: after the Shadowfell she asks to make it serious -> Partnered.",
         "Act 3 (Selune path): the night swim needs 40+ approval and knowing she cannot swim.",
-        "Shar path: she stays with you, but always ends the relationship after the final battle.",
+        { act = 3, "Shar path: she stays with you, but always ends the relationship after the final battle." },
     },
 
     -- Shadowheart's hidden 'Nightsong points' (4 of 6 make sparing Nightsong much easier).
     counters = {
         {
             id = "nightsong", label = "Nightsong points", need = 4,
+            -- shown instead of the name and help until Act 2, unless spoilers are fully on
+            act = 2, alias = "A hidden score",
+            aliasHelp = "Some of what you say to her counts toward a choice she makes later.",
             help = "Hidden Selune-path score. With 4 or more she is far easier to talk into sparing Nightsong.",
             items = {
                 { label = "Encouraged her to stop living with the wound", cond = G("ORI_Shadowheart_State_NightsongPoint_CureIncurableWound") },
                 { label = "Pointed out the Selunite meaning of her wolf memory", cond = G("ORI_Shadowheart_State_NightsongPoint_MadeSeluniteConnection") },
                 { label = "Got her to eat the Noblestalk", cond = G("ORI_Shadowheart_State_NightsongPoint_AteNoblestalk") },
-                { label = "Gave her a Night Orchid", cond = G("ORI_Shadowheart_State_NightsongPoint_GaveNightOrchid") },
-                { label = "Let her attempt the Gauntlet trials", cond = G("ORI_Shadowheart_State_NightsongPoint_AgreedToTrials") },
-                { label = "Told her she owes nothing to an abusive mother", cond = G("ORI_Shadowheart_State_NightsongPoint_AbuseEmancipation") },
+                { act = 2, label = "Gave her a Night Orchid", cond = G("ORI_Shadowheart_State_NightsongPoint_GaveNightOrchid") },
+                { act = 2, label = "Let her attempt the Gauntlet trials", cond = G("ORI_Shadowheart_State_NightsongPoint_AgreedToTrials") },
+                { act = 2, label = "Told her she owes nothing to an abusive mother", cond = G("ORI_Shadowheart_State_NightsongPoint_AbuseEmancipation") },
             },
             reached = G("ORI_Shadowheart_State_NightsongPoint_HasEnoughPoints"),
         },

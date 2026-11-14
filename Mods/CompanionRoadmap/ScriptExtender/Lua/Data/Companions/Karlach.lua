@@ -36,16 +36,16 @@ CR.Guides.Register {
     },
 
     rules = {
-        "Meet her BEFORE raiding the Grove, starting a fight inside the Grove, or letting the Rite of Thorns finish - otherwise she refuses to join.",
-        "Two pieces of Infernal Iron + Dammon = a fixed heart (she can touch people again). Dammon must survive.",
-        "Her Act 2 romance night must happen before you leave Act 2, or she ends the relationship in Act 3.",
-        "If Wyll meets her first, talk him down - do not let him kill her.",
+        { act = 1, "Meet her BEFORE raiding the Grove, starting a fight inside the Grove, or letting the Rite of Thorns finish - otherwise she refuses to join." },
+        { act = 1, "Two pieces of Infernal Iron + Dammon = a fixed heart (she can touch people again). Dammon must survive." },
+        { act = 2, "Her Act 2 romance night must happen before you leave Act 2, or she ends the relationship in Act 3." },
+        { act = 1, "If Wyll meets her first, talk him down - do not let him kill her." },
     },
     romanceNotes = {
         "Act 1: at 30+ approval (and not dating two others) she visits you at night to confess.",
-        "Otherwise accept her at the camp celebration (20+ approval, at most one other active romance).",
+        { act = 1, "Otherwise accept her at the camp celebration (20+ approval, at most one other active romance)." },
         "Act 2: once Dammon finishes the second upgrade, long rest for her big romance night -> Partnered.",
-        "Partnering with someone else before that night ends her romance.",
+        { act = 2, "Partnering with someone else before that night ends her romance." },
         "Act 3: say yes to her 'first date' at The Singing Lute in the Lower City.",
     },
 

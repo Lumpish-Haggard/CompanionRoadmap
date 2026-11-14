@@ -9,11 +9,11 @@
 --   |  2 things to settle before you move on - click to review             |
 --   |  Companions | Before you move on (2) | Options                       |
 --   |  +-------------+---------------------------------------------------+ |
---   |  | COMPANIONS  | Shadowheart                                       | |
---   |  | Shadowheart | Half-elf cleric of Shar                           | |
---   |  |  Dating . 47| In your camp . Dating . Approval 47 (High)        | |
---   |  | Minthara    | ==========----------------                        | |
---   |  |  ...        | v Act 2  .  3 of 5 done                           | |
+--   |  | COMPANIONS  | (o) Shadowheart                                   | |
+--   |  | (o) Shadow..|     Half-elf cleric of Shar                       | |
+--   |  |     Dating  |     In your camp . Dating . Approval 47 (High)    | |
+--   |  | (o) Minthara| ==========----------------                        | |
+--   |  |     ...     | v Act 2  .  3 of 5 done                           | |
 --   |  |             |   NEXT      Romance: the night swim               | |
 --   |  |             |   DONE      ...                                   | |
 --   +----------------------------------------------------------------------+
@@ -33,7 +33,7 @@ UI.win = nil
 UI.open = false
 UI.selected = nil
 UI.page = nil          -- element references for the selected companion
-UI.sidebar = {}        -- companionId -> { sel, info }
+UI.sidebar = {}        -- companionId -> { sel, info, img }
 UI.h = {}              -- header / tabs / warnings / options references
 UI.forcedAct = nil
 
@@ -46,11 +46,16 @@ local ACTS = {
 local DONE_LIKE = { D = true, O = true }
 local OPEN_LIKE = { N = true, A = true, P = true, I = true }
 
--- Widths are scaled by the extender (window Scaling = "Scaled").
+-- Sizes are scaled by the extender (window Scaling = "Scaled").
 local SIDEBAR_WIDTH = 300
-local STATUS_WIDTH = 125
+local SIDEBAR_WIDTH_PORTRAITS = 350
+local STATUS_WIDTH = 140
+local PORTRAIT_SIDE = 46
+local PORTRAIT_PAGE = 84
 -- Nudges small text down so it shares a baseline with body text next to it.
 local BASELINE_NUDGE = { 0, 3 }
+local FULL_TINT = { 1, 1, 1, 1 }
+local LOST_TINT = { 1, 1, 1, 0.35 }
 
 -- -----------------------------------------------------------------------------
 -- Helpers
@@ -73,21 +78,35 @@ local function actKey(act)
     return math.min(act, 3)
 end
 
+--- The act used for spoiler decisions: what the player has reached (at least 1).
+local function reachedAct(snap)
+    if snap and snap.ready then return math.max(1, math.min(snap.act or 1, 3)) end
+    return 1
+end
+
 local function indexOf(list, v)
     for i, x in ipairs(list) do if x == v then return i end end
     return 1
 end
 
+local function portraitsOn()
+    return Set.Get("portraits") and true or false
+end
+
 -- Statuses whose meaning is obvious from the label alone get no explanation line.
 local SELF_EXPLAINING = { N = true, A = true, U = true, ["?"] = true }
 
-local function describeEvidence(comp, step, status, evidence)
+--- One plain sentence under a step: what the game recorded, or why it is closed.
+local function describeEvidence(comp, c, step, status, evidence)
     if status == S.DONE and evidence > 0 and step.done[evidence] then
-        return "Detected: " .. Guides.Describe(step.done[evidence], comp)
+        return "Detected: " .. Guides.Explain(step.done[evidence], comp, "done")
     elseif status == S.MISSED and evidence < 0 and step.fail[-evidence] then
-        return "Missed because: " .. Guides.Describe(step.fail[-evidence], comp)
+        return "Missed: " .. Guides.Explain(step.fail[-evidence], comp, "fail")
     elseif status == S.NA and evidence > 0 and step.skip[evidence] then
-        return "Another path was taken: " .. Guides.Describe(step.skip[evidence], comp)
+        return "Not needed: " .. Guides.Explain(step.skip[evidence], comp, "skip")
+    elseif status == S.MISSED and c and c.lost then
+        if c.why == "died" then return "Missed: " .. comp.name .. " died before joining you" end
+        return "Missed: " .. comp.name .. " is gone for this playthrough"
     elseif status == S.MISSED and step.closes then
         local d = Guides.DeadlineById[step.closes]
         return "Its window closed: " .. (d and d.title or step.closes)
@@ -144,6 +163,14 @@ local function addSmallButton(parent, label, onClick, sameLine)
     return b
 end
 
+local function addBar(parent)
+    local bar = parent:AddProgressBar()
+    bar.Size = { -1, 6 }
+    T.SetProp(bar, "Overlay", " ")
+    T.SetColor(bar, T.BarTrack, "FrameBg")
+    return bar
+end
+
 -- -----------------------------------------------------------------------------
 -- Options tab
 -- -----------------------------------------------------------------------------
@@ -170,6 +197,11 @@ local function addCombo(parent, label, choices, current, onPick)
     return combo
 end
 
+--- Any choice (here, in the Options tab or in MCM) answers the first-run question.
+local function chooseSpoilers(key)
+    Set.Set("spoilers", key)
+end
+
 local function buildLegend(parent)
     local tbl = parent:AddTable("##crLegend", 2)
     tbl:AddColumn("Status", "WidthFixed", STATUS_WIDTH)
@@ -193,8 +225,9 @@ local function buildOptions(parent)
     addCheckbox(parent, "Hide finished and not applicable steps", "hideCompleted")
     addCheckbox(parent, "Romance steps only", "romanceOnly")
     addCheckbox(parent, "Show how each step is detected (flags and journal entries)", "showTracking")
+    addCheckbox(parent, "Show companion portraits", "portraits")
     UI.h.spoilers = addCombo(parent, "Spoilers for later acts", Set.SpoilerChoices,
-        indexOf(Set.SpoilerKeys, Set.Get("spoilers")), function(i) Set.Set("spoilers", Set.SpoilerKeys[i]) end)
+        indexOf(Set.SpoilerKeys, Set.Get("spoilers")), function(i) chooseSpoilers(Set.SpoilerKeys[i]) end)
     UI.h.opacity = addCombo(parent, "Window opacity", Set.OpacityChoices,
         indexOf(Set.OpacityValues, Set.Get("opacity")), function(i) Set.Set("opacity", Set.OpacityValues[i]) end)
     parent:AddSpacing()
@@ -204,7 +237,7 @@ local function buildOptions(parent)
     addCheckbox(parent, "Notify for every step, not only romance and important ones", "notifyAll")
     parent:AddSpacing()
 
-    section(parent, "Hotkey")
+    section(parent, "Keys")
     UI.h.hotkeyText = T.Text(parent, "", T.C.text)
     UI.h.hotkeyBtn = parent:AddButton("Change hotkey")
     UI.h.hotkeyBtn.OnClick = function()
@@ -212,6 +245,7 @@ local function buildOptions(parent)
         T.Update(UI.h.hotkeyText, "Press the new key combination now (Esc cancels)...", T.C.warn)
         CR.Hotkey.BeginCapture(function() UI.RefreshHotkeyText() end)
     end
+    addCheckbox(parent, "Esc closes the roadmap", "escCloses")
     parent:AddSpacing()
 
     section(parent, "This save")
@@ -232,6 +266,21 @@ local function buildOptions(parent)
         end
     end
     T.Text(parent, "Check-offs are stored in your save file.", T.C.faint, "small")
+    parent:AddSpacing()
+
+    section(parent, "Report a problem")
+    T.Text(parent, "Found a wrong status or a missing step? Create a report file and attach it to your bug report. "
+        .. "It lists what the tracker sees in this save: game identifiers only, nothing personal.", T.C.dim, "small")
+    local report = parent:AddButton("Create a report file")
+    UI.h.reportResult = T.Text(parent, "", T.C.faint, "small")
+    T.Show(UI.h.reportResult, false)
+    report.OnClick = function()
+        T.Update(UI.h.reportResult, "Writing the report...", T.C.faint)
+        T.Show(UI.h.reportResult, true)
+        CR.Client.RequestReport(function(ok, text)
+            T.Update(UI.h.reportResult, text, ok and T.C.good or T.C.warn)
+        end)
+    end
     parent:AddSpacing()
 
     section(parent, "Statuses")
@@ -260,18 +309,43 @@ end
 -- -----------------------------------------------------------------------------
 -- Window
 -- -----------------------------------------------------------------------------
-local function buildSidebar(side)
+
+--- (Re)builds the companion list. With portraits each entry is a table row, so a
+--- picture that fails to load leaves an empty cell instead of breaking the layout.
+local function buildSidebar()
+    local side = UI.sideWin
+    if not side then return end
+    pcall(function() side:RemoveAllChildren() end)
+    UI.sidebar = {}
+    local pictures = portraitsOn()
+    side.Size = { pictures and SIDEBAR_WIDTH_PORTRAITS or SIDEBAR_WIDTH, 0 }
+
     T.Label(side, "Companions")
     side:AddSpacing()
     local s = T.Scale()
+    local tbl = nil
+    if pictures then
+        tbl = side:AddTable("##crSideTable", 2)
+        tbl:AddColumn("Portrait", "WidthFixed", PORTRAIT_SIDE)
+        tbl:AddColumn("Companion", "WidthStretch")
+        T.SetStyle(tbl, "CellPadding", 4 * s, 6 * s)
+    end
     for _, comp in ipairs(Guides.Companions) do
-        local group = side:AddGroup("##grp_" .. comp.id)
-        T.SetStyle(group, "ItemSpacing", 10 * s, 1 * s)
-        local sel = group:AddSelectable(comp.name .. "###sel_" .. comp.id)
-        sel.OnClick = function() UI.Select(comp.id) end
-        local info = T.Text(group, "", T.C.dim, "small")
-        side:AddSpacing()
-        UI.sidebar[comp.id] = { sel = sel, info = info }
+        local entry = {}
+        local holder
+        if tbl then
+            local row = tbl:AddRow()
+            entry.img = T.Image(row:AddCell(), T.Portraits[comp.id], PORTRAIT_SIDE)
+            holder = row:AddCell()
+        else
+            holder = side:AddGroup("##grp_" .. comp.id)
+        end
+        T.SetStyle(holder, "ItemSpacing", 10 * s, 1 * s)
+        entry.sel = holder:AddSelectable(comp.name .. "###sel_" .. comp.id)
+        entry.sel.OnClick = function() UI.Select(comp.id) end
+        entry.info = T.Text(holder, "", T.C.dim, "small")
+        if not tbl then side:AddSpacing() end
+        UI.sidebar[comp.id] = entry
     end
 end
 
@@ -311,6 +385,16 @@ local function buildWindow()
         selectTab(h.tabWarn)
     end
     T.Show(h.alert, false)
+
+    -- asked once: how much may the roadmap reveal about acts not reached yet?
+    h.firstRun = win:AddGroup("##crFirstRun")
+    T.SetStyle(h.firstRun, "FrameBorderSize", 1)
+    T.Text(h.firstRun, "How much may the roadmap reveal about acts you have not reached yet? Until you choose, "
+        .. "later acts stay hidden. You can change this any time in Options.", T.C.gold, "small")
+    addSmallButton(h.firstRun, "Everything", function() chooseSpoilers("full") end)
+    addSmallButton(h.firstRun, "Step titles only", function() chooseSpoilers("titles") end, true)
+    addSmallButton(h.firstRun, "Nothing from later acts", function() chooseSpoilers("hide") end, true)
+    T.Show(h.firstRun, not Set.Get("spoilersChosen"))
     win:AddSpacing()
 
     h.tabs = win:AddTabBar("##crMain")
@@ -321,12 +405,11 @@ local function buildWindow()
     -- Companions: the list on the left, the selected companion on the right
     local s = T.Scale()
     local side = h.tabRoadmap:AddChildWindow("##crSidebar")
-    side.Size = { SIDEBAR_WIDTH, 0 }
     T.SetProp(side, "AlwaysUseWindowPadding", true)
     T.SetColor(side, { 0, 0, 0, 0.22 }, "ChildBg")
     T.SetStyle(side, "WindowPadding", 14 * s, 12 * s)
-    buildSidebar(side)
     UI.sideWin = side
+    buildSidebar()
 
     local content = h.tabRoadmap:AddChildWindow("##crContent")
     content.SameLine = true
@@ -363,8 +446,9 @@ local function buildStep(tbl, comp, step)
     T.SetProp(s.tree, "SpanAvailWidth", true)
 
     local meta = stepMeta(step)
+    s.hasMeta = meta ~= ""
     s.meta = T.Text(s.tree, meta, T.C.dim, "small")
-    T.Show(s.meta, meta ~= "")
+    T.Show(s.meta, s.hasMeta)
     s.req = T.Text(s.tree, "", T.C.text, "small")
 
     s.details = s.tree:AddGroup("##det_" .. step.id)
@@ -429,19 +513,30 @@ local function buildCounters(parent, comp, page)
     for _, counter in ipairs(comp.counters) do
         local c = { def = counter, items = {} }
         c.label = T.Text(parent, counter.label, T.C.text, "small")
-        c.bar = parent:AddProgressBar()
-        c.bar.Size = { -1, 6 }
-        T.SetProp(c.bar, "Overlay", " ")
+        c.bar = addBar(parent)
         local tree = parent:AddTree("Details###cnt_" .. comp.id .. counter.id)
         T.SetFont(tree, "small")
         T.SetColor(tree, T.C.dim)
-        if counter.help then T.Text(tree, counter.help, T.C.dim, "italic") end
+        c.help = T.Text(tree, counter.help or "", T.C.dim, "italic")
         for i, item in ipairs(counter.items) do
             local line, mark = T.Bullet(tree, item.label, T.C.dim, T.DOT, T.C.faint)
             c.items[i] = { line = line, mark = mark }
         end
         table.insert(page.counters, c)
     end
+end
+
+--- Golden rules / romance notes: one bullet per entry, plus a line that says how
+--- many entries the spoiler setting is hiding.
+local function buildNotes(tree, list, ornament, ornamentColor)
+    local group = { items = {} }
+    for _, note in ipairs(list) do
+        local line, mark = T.Bullet(tree, note.text, T.C.text, ornament, ornamentColor)
+        table.insert(group.items, { note = note, line = line, mark = mark })
+    end
+    group.hidden = T.Text(tree, "", T.C.faint, "small")
+    T.Show(group.hidden, false)
+    return group
 end
 
 --- Opens the current act, plus any earlier act that still has a NEXT or TO DO step
@@ -471,12 +566,22 @@ local function buildPage(comp)
     local page = { comp = comp, steps = {}, acts = {}, counters = {}, openedNext = {} }
     UI.page = page
 
-    T.Text(content, comp.name, T.C.gold, "title")
-    if comp.subtitle and comp.subtitle ~= "" then T.Text(content, comp.subtitle, T.C.dim, "italic") end
-    page.status = T.Text(content, "", T.C.text, "small")
-    page.approval = content:AddProgressBar()
-    page.approval.Size = { -1, 6 }
-    T.SetProp(page.approval, "Overlay", " ")
+    -- name, subtitle and status sit next to the portrait when portraits are on
+    local head = content
+    local portrait = portraitsOn() and T.Portraits[comp.id] or nil
+    if portrait then
+        local tbl = content:AddTable("##crPageHead", 2)
+        tbl:AddColumn("Portrait", "WidthFixed", PORTRAIT_PAGE + 6)
+        tbl:AddColumn("Summary", "WidthStretch")
+        local row = tbl:AddRow()
+        page.portrait = T.Image(row:AddCell(), portrait, PORTRAIT_PAGE)
+        head = row:AddCell()
+    end
+    T.Text(head, comp.name, T.C.gold, "title")
+    if comp.subtitle and comp.subtitle ~= "" then T.Text(head, comp.subtitle, T.C.dim, "italic") end
+    page.status = T.Text(head, "", T.C.text, "small")
+
+    page.approval = addBar(content)
     page.notice = T.Text(content, "", T.C.warn, "small")
     T.Show(page.notice, false)
 
@@ -491,13 +596,13 @@ local function buildPage(comp)
         local rules = content:AddTree("Golden rules###crRules")
         T.SetProp(rules, "DefaultOpen", true)
         T.SetColor(rules, T.C.bad)
-        for _, line in ipairs(comp.rules) do T.Bullet(rules, line, T.C.text, T.CROSS, T.C.bad) end
+        page.rules = buildNotes(rules, comp.rules, T.CROSS, T.C.bad)
     end
 
     if #comp.romanceNotes > 0 then
         local romance = content:AddTree((comp.romanceable and "Romance path" or "Romance") .. "###crRomance")
         T.SetColor(romance, T.C.romance)
-        for _, line in ipairs(comp.romanceNotes) do T.Bullet(romance, line, T.C.text, T.BULLET, T.C.romance) end
+        page.notes = buildNotes(romance, comp.romanceNotes, T.BULLET, T.C.romance)
     end
 
     content:AddSpacing()
@@ -518,6 +623,7 @@ local function refreshHeader(snap)
     local count = h.warnCount or 0
     T.Update(h.tabWarn, (count > 0 and string.format("Before you move on (%d)", count) or "Before you move on")
         .. "###crTabWarn")
+    T.Show(h.firstRun, not Set.Get("spoilersChosen"))
     if not snap or not snap.ready then
         T.Update(h.act, "Waiting for the game", T.C.gold)
         T.Update(h.summary, "Load a save and the roadmap fills in by itself.", T.C.dim)
@@ -559,11 +665,16 @@ local function refreshHeader(snap)
     T.Show(h.alert, count > 0)
 end
 
+--- One short line under a companion's name in the list.
 local function companionLine(comp, c)
     if not c then return "", T.C.faint end
     if c.error then return "Error - see the console", T.C.bad end
     if c.you then return "Your character", T.C.gold end
-    if c.lost then return "Lost for this playthrough", T.C.bad end
+    if c.lost then
+        if c.why == "died" then return "Died before joining", T.C.bad end
+        return "Lost for this playthrough", T.C.bad
+    end
+    if c.dead and not c.rec then return "Dead - can be revived", T.C.bad end
     local parts, color = {}, T.C.dim
     if c.dead then table.insert(parts, "Dead - revive") color = T.C.bad end
     local rel = c.rel and T.Relationship[c.rel]
@@ -579,7 +690,7 @@ local function companionLine(comp, c)
         end
     else
         table.insert(parts, "Not recruited")
-        if not c.dead and not rel then color = T.C.faint end
+        if not rel then color = T.C.faint end
     end
     return table.concat(parts, T.SEP_SHORT), color
 end
@@ -588,7 +699,8 @@ local function refreshSidebar(snap)
     for _, comp in ipairs(Guides.Companions) do
         local entry = UI.sidebar[comp.id]
         if entry then
-            local text, color = companionLine(comp, compSnapshot(snap, comp))
+            local c = compSnapshot(snap, comp)
+            local text, color = companionLine(comp, c)
             T.Update(entry.info, text, color)
             T.Show(entry.info, text ~= "")
             T.SetProp(entry.sel, "Selected", comp.id == UI.selected)
@@ -599,6 +711,7 @@ local function refreshSidebar(snap)
             local nameColor = hasNext and T.C.text or T.C.dim
             if comp.id == UI.selected then nameColor = T.C.gold end
             T.SetColor(entry.sel, nameColor)
+            if entry.img then T.SetProp(entry.img, "Tint", (c and c.lost) and LOST_TINT or FULL_TINT) end
         end
     end
 end
@@ -606,7 +719,7 @@ end
 local function visibleByFilters(step, status)
     if Set.Get("hideCompleted") and (DONE_LIKE[status] or status == S.NA) then return false end
     if Set.Get("romanceOnly") and not step.romance then return false end
-    if Set.Get("spoilers") == "hide" and status == S.UPCOMING then return false end
+    if Set.Spoilers() == "hide" and status == S.UPCOMING then return false end
     return true
 end
 
@@ -664,10 +777,14 @@ local function collectWarnings(snap)
             table.insert(groups, g)
         end
     end
+    -- dead but not lost: in your camp (Withers can help), or one of the few who can
+    -- still be revived before they ever joined
     local dead = {}
     for _, comp in ipairs(Guides.Companions) do
         local c = compSnapshot(snap, comp)
-        if c and c.dead and not c.lost and c.rec then table.insert(dead, comp) end
+        if c and c.dead and not c.lost and not c.you and (c.rec or comp.revivable) then
+            table.insert(dead, { comp = comp, rec = c.rec })
+        end
     end
     count = count + #dead
     return groups, dead, count
@@ -682,7 +799,7 @@ local function warningsKey(groups, dead)
             table.insert(parts, "|")
         end
     end
-    for _, comp in ipairs(dead) do table.insert(parts, "dead:" .. comp.id) end
+    for _, d in ipairs(dead) do table.insert(parts, "dead:" .. d.comp.id .. (d.rec and "+" or "-")) end
     return table.concat(parts, ",")
 end
 
@@ -763,11 +880,28 @@ local function refreshWarnings(snap)
     end
     if #dead > 0 then
         T.Label(body, "Dead companions", T.C.bad)
-        for _, comp in ipairs(dead) do
-            T.Bullet(body, comp.name .. " is dead. Revive them with Withers at camp or a Scroll of Revivify.",
-                T.C.text, T.CROSS, T.C.bad)
+        for _, d in ipairs(dead) do
+            local how = d.rec and "Revive them with Withers at camp or a Scroll of Revivify." or d.comp.revivable
+            T.Bullet(body, d.comp.name .. " is dead. " .. how, T.C.text, T.CROSS, T.C.bad)
         end
     end
+end
+
+--- Shows the rules / notes the spoiler setting allows and counts the hidden ones.
+local function refreshNotes(group, act, spoilers)
+    if not group then return end
+    local hidden = 0
+    for _, it in ipairs(group.items) do
+        local show = spoilers == "full" or it.note.act <= act
+        T.Show(it.line, show)
+        T.Show(it.mark, show)
+        if not show then hidden = hidden + 1 end
+    end
+    if hidden > 0 then
+        T.Update(group.hidden, string.format("%d more for later acts %s hidden by your spoiler setting.", hidden,
+            hidden == 1 and "is" or "are"))
+    end
+    T.Show(group.hidden, hidden > 0)
 end
 
 local function refreshPage(snap)
@@ -776,6 +910,8 @@ local function refreshPage(snap)
     local comp = page.comp
     local c = compSnapshot(snap, comp)
     local ready = snap and snap.ready
+    local spoilers = Set.Spoilers()
+    local act = reachedAct(snap)
 
     -- status line and approval
     local parts, color = {}, T.C.text
@@ -784,10 +920,15 @@ local function refreshPage(snap)
         color = T.C.dim
     elseif c then
         if c.you then table.insert(parts, "Your character")
-        elseif c.lost then table.insert(parts, "Lost for this playthrough") color = T.C.bad
+        elseif c.lost then
+            table.insert(parts, c.why == "died" and "Died before joining you" or "Lost for this playthrough")
+            color = T.C.bad
         elseif c.rec then table.insert(parts, "In your camp")
         else table.insert(parts, "Not recruited yet") end
-        if c.dead and not c.lost then table.insert(parts, "Dead - revive them") color = T.C.bad end
+        if c.dead and not c.lost then
+            table.insert(parts, c.rec and "Dead - revive them" or "Dead")
+            color = T.C.bad
+        end
         if c.rel and T.Relationship[c.rel] then table.insert(parts, T.Relationship[c.rel].label) end
         if c.a ~= nil and not c.you and (c.rec or c.a ~= 0) then
             table.insert(parts, string.format("Approval %d (%s)", c.a, (CR.ApprovalTier(c.a))))
@@ -795,6 +936,7 @@ local function refreshPage(snap)
         if not comp.romanceable then table.insert(parts, "Not romanceable") end
     end
     T.Update(page.status, table.concat(parts, T.SEP), color)
+    if page.portrait then T.SetProp(page.portrait, "Tint", (c and c.lost) and LOST_TINT or FULL_TINT) end
 
     local showBar = c and c.a ~= nil and not c.you and (c.rec or c.a ~= 0)
     T.Show(page.approval, showBar and true or false)
@@ -803,45 +945,62 @@ local function refreshPage(snap)
     local notice = ""
     if c and c.you then
         notice = "You are playing this origin: recruitment and romance steps do not apply, the personal quest still does."
+    elseif c and c.lost and c.why == "died" then
+        notice = comp.name .. " died before joining you. In most cases a companion who dies before being recruited "
+            .. "cannot be revived, so the remaining steps are marked as missed."
     elseif c and c.lost then
         notice = comp.name .. " has died or left for good in this playthrough. The remaining steps are marked as missed."
+    elseif c and c.dead and not c.rec and comp.revivable then
+        notice = comp.revivable
+    elseif c and c.dead and c.rec then
+        notice = "Revive " .. comp.name .. " with Withers at camp or with a Scroll of Revivify."
     end
     T.Update(page.notice, notice, T.C.warn)
     T.Show(page.notice, notice ~= "")
 
-    -- counters
+    -- counters (their names can be spoilers too)
     for _, counter in ipairs(page.counters) do
-        local data = c and c.cnt and c.cnt[counter.def.id]
+        local def = counter.def
+        local data = c and c.cnt and c.cnt[def.id]
+        local revealed = spoilers == "full" or (def.act or 0) <= act
         local value = 0
         for i, item in ipairs(counter.items) do
+            local itemDef = def.items[i]
             local on = data and data.bits and data.bits[i] == 1
             if on then value = value + 1 end
+            local known = on or spoilers == "full" or (itemDef.act or 0) <= act
             T.Update(item.mark, on and T.BULLET or T.DOT, on and T.C.good or T.C.faint)
-            T.SetColor(item.line, on and T.C.text or T.C.dim)
+            T.Update(item.line, known and itemDef.label or "A later moment", on and T.C.text or T.C.dim)
         end
-        local n = #counter.def.items
-        local need = counter.def.need or n
+        local n = #def.items
+        local need = def.need or n
         local reached = (data and data.reached) or value >= need
-        T.Update(counter.label, string.format("%s%s%d of %d%s%s", counter.def.label, T.SEP, value, n, T.SEP,
-            reached and "enough" or (need .. " needed")), reached and T.C.good or T.C.text)
+        T.Update(counter.label, string.format("%s%s%d of %d%s%s", revealed and def.label or (def.alias or def.label),
+            T.SEP, value, n, T.SEP, reached and "enough" or (need .. " needed")), reached and T.C.good or T.C.text)
+        local help = revealed and (def.help or "") or (def.aliasHelp or "")
+        T.Update(counter.help, help)
+        T.Show(counter.help, help ~= "")
         T.SetProp(counter.bar, "Value", clamp(value / math.max(1, n), 0, 1))
     end
 
+    refreshNotes(page.rules, act, spoilers)
+    refreshNotes(page.notes, act, spoilers)
+
     -- acts and steps
-    local spoilers = Set.Get("spoilers")
     local showTracking = Set.Get("showTracking")
     local currentKey = ready and actKey(snap.act) or 1
-    for key, act in pairs(page.acts) do
+    for key, section in pairs(page.acts) do
         local done, total, visible = 0, 0, 0
-        for _, s in ipairs(act.steps) do
+        for _, s in ipairs(section.steps) do
             local step = s.step
             local st, ev = stepResult(snap, step.id)
             local info = T.Status[st] or T.Status["?"]
-            T.Update(s.status, info.label, info.color)
+            local shown = (st == S.AVAILABLE and step.optional) and T.Status.OPT or info
+            T.Update(s.status, shown.label, shown.color)
             local band = st == S.NEXT and T.NextRowBg or T.Clear
             T.SetColor(s.row, band, "TableRowBg")
             T.SetColor(s.row, band, "TableRowBgAlt")
-            T.Update(s.tip, T.StatusHelp[st] or "Waiting for game data.")
+            T.Update(s.tip, (shown == T.Status.OPT and T.StatusHelp.OPT) or T.StatusHelp[st] or "Waiting for game data.")
             T.SetColor(s.tree, info.title)
 
             if st ~= S.NA then
@@ -869,9 +1028,9 @@ local function refreshPage(snap)
 
             local hideDetails = spoilers == "titles" and st == S.UPCOMING
             T.Show(s.details, not hideDetails)
-            T.Show(s.meta, not hideDetails and s.meta.Label ~= "")
+            T.Show(s.meta, s.hasMeta and not hideDetails)
             T.Show(s.tracking, showTracking and true or false)
-            local evidence = describeEvidence(comp, step, st, ev)
+            local evidence = describeEvidence(comp, c, step, st, ev)
             T.Update(s.state, evidence, evidenceColor(st))
             T.Show(s.state, evidence ~= "")
 
@@ -884,11 +1043,11 @@ local function refreshPage(snap)
                 pcall(function() s.tree:SetOpen(true, "Always") end)
             end
         end
-        T.Show(act.empty, visible == 0)
-        local label = act.def.title
+        T.Show(section.empty, visible == 0)
+        local label = section.def.title
         if total > 0 then label = string.format("%s%s%d of %d done", label, T.SEP_SHORT, done, total) end
-        T.Update(act.header, label .. "###act" .. key .. "_" .. comp.id)
-        T.Show(act.header, not (spoilers == "hide" and ready and key > currentKey))
+        T.Update(section.header, label .. "###act" .. key .. "_" .. comp.id)
+        T.Show(section.header, not (spoilers == "hide" and ready and key > currentKey))
     end
 end
 
@@ -975,6 +1134,14 @@ function UI.Init()
             pcall(function() UI.h.opacity.SelectedIndex = indexOf(Set.OpacityValues, Set.Get("opacity")) - 1 end)
         end
         if key == "romanceOnly" then UI.h.warnKey = nil end
+        if key == "portraits" then
+            -- pictures are part of the layout: rebuild the list and the open page
+            CR.Guard("build sidebar", buildSidebar)
+            if UI.selected then
+                UI.Select(UI.selected)
+                return
+            end
+        end
         UI.Refresh()
     end)
 end

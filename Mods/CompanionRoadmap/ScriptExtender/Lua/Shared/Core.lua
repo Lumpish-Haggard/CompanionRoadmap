@@ -10,7 +10,7 @@
 CR = CR or {}
 
 CR.ModName = "Companion & Romance Roadmap"
-CR.Version = "1.0.0"
+CR.Version = "1.0.1"
 CR.Protocol = 1                                       -- bump when the net payload changes
 CR.NULL = "NULL_00000000-0000-0000-0000-000000000000" -- Osiris NULL GUID (global flags, "any player")
 CR.Verbose = false                                    -- toggled with the console command "!roadmap debug"
@@ -132,6 +132,7 @@ end
 --   Toast    server -> client   "step completed / missed" notifications
 --   Hello    client -> server   subscribe + request a snapshot ({open=bool})
 --   Override client -> server   manual check-off toggle ({id=stepId, value=bool})
+--   Report   client -> server   write the report file; server -> client: the result
 -- Channels must be created with identical names on both sides.
 -- -----------------------------------------------------------------------------
 CR.Net = { Ready = false }
@@ -147,6 +148,7 @@ function CR.Net.Init()
         CR.Net.Toast = Ext.Net.CreateChannel(ModuleUUID, "Toast")
         CR.Net.Hello = Ext.Net.CreateChannel(ModuleUUID, "Hello")
         CR.Net.Override = Ext.Net.CreateChannel(ModuleUUID, "Override")
+        CR.Net.Report = Ext.Net.CreateChannel(ModuleUUID, "Report")
     end)
     if not ok then
         CR.Error("Could not create network channels: %s", tostring(err))

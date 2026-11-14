@@ -21,9 +21,9 @@ CR.Guides.Register {
     left = { F("ORI_Jaheira_State_LeftPermanently", "any"), Q(HH, "JaheiraLeavesParty") },
 
     rules = {
-        "She only becomes a real companion after Ketheric retreats to the Colony - keep her alive until then.",
-        "Never kill Minsc, refuse to recruit him once he is saved, or sacrifice him to Sarevok - she leaves.",
-        "Never harm her children or Isobel.",
+        { act = 2, "She only becomes a real companion after Ketheric retreats to the Colony - keep her alive until then." },
+        { act = 3, "Never kill Minsc, refuse to recruit him once he is saved, or sacrifice him to Sarevok - she leaves." },
+        { act = 2, "Never harm her children or Isobel." },
     },
     romanceNotes = { "Jaheira cannot be romanced." },
 

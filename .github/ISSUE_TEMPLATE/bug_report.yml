@@ -64,10 +64,19 @@ body:
         - Multiplayer (client)
 
   - type: textarea
+    id: report
+    attributes:
+      label: Report file
+      description: >-
+        In the roadmap, open Options and click "Create a report file" (or type `!roadmap report` in the server console),
+        then drag `report.json` from `%LOCALAPPDATA%\Larian Studios\Baldur's Gate 3\Script Extender\CompanionRoadmap`
+        into this box. It lists what the tracker sees in your save: game identifiers only, nothing personal.
+
+  - type: textarea
     id: console
     attributes:
       label: Console output
-      description: Script Extender console lines that mention `CompanionRoadmap`, plus the output of `!roadmap` typed in the server console.
+      description: Script Extender console lines that mention `CompanionRoadmap`, if there are any errors.
       render: text
 
   - type: textarea

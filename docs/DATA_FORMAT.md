@@ -83,6 +83,26 @@ local SH = "ORI_COM_ShadowHeart"
 
 Lists (`done`, `fail`, `skip`, `left`) are "any of". Use `C.All{}` for "both".
 
+## Rules, notes and spoilers
+
+`rules` and `romanceNotes` are lists of sentences. Each entry is either a plain string or `{ act = N, "text" }`:
+
+```lua
+rules = {
+    { act = 1, "Never side with Lae'zel when the two of them fight at camp." },
+    { act = 3, "Never surrender Shadowheart to Viconia." },
+},
+romanceNotes = {
+    "Act 2: after the Shadowfell she asks to make it serious.",   -- "Act N" at the start is detected
+},
+```
+
+The act decides when the line is shown if the player limits spoilers: a line is visible once the player has reached that act. Untagged lines are always visible, so tag anything that gives away a later act. Counters accept `act`, `alias` and `aliasHelp` (shown instead of the real name and help before that act), and each counter item accepts `act`.
+
+## Dying before joining
+
+A companion who is dead and was never recruited is treated as lost: in most cases they cannot be revived or recruited any more. Set `revivable = "sentence"` on the companion when the game does allow it (Wyll, Lae'zel); the sentence tells the player how.
+
 ## How a status is decided
 
 `Tracker/FlagEvaluator.lua` checks, in this order:

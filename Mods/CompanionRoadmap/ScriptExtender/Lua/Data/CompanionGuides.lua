@@ -156,6 +156,33 @@ end
 
 local VALID_ACTS = { [0] = true, [1] = true, [2] = true, [3] = true }
 
+--- Golden rules and romance notes are written as "text" or { act = N, "text" }.
+--- Normalised to { text = ..., act = N }; act 0 means "not tied to an act" and a
+--- note that starts with "Act N" is tagged automatically. The act decides whether
+--- the line is shown when the player limits spoilers.
+local function normalizeNotes(list, owner, what)
+    local out = {}
+    for i, entry in ipairs(list or {}) do
+        local text, act
+        if type(entry) == "table" then
+            text, act = entry[1] or entry.text, entry.act
+        else
+            text = entry
+        end
+        if type(text) ~= "string" or text == "" then
+            addError("%s %s #%d has no text", owner, what, i)
+        else
+            act = act or tonumber(string.match(text, "^Act (%d)")) or 0
+            if not VALID_ACTS[act] then
+                addError("%s %s #%d has an invalid act", owner, what, i)
+                act = 0
+            end
+            table.insert(out, { text = text, act = act })
+        end
+    end
+    return out
+end
+
 --- Called by each Data/Companions/*.lua file.
 function Guides.Register(def)
     if type(def) ~= "table" or type(def.id) ~= "string" then
@@ -170,8 +197,20 @@ function Guides.Register(def)
     def.steps = def.steps or {}
     def.left = normalizeList(def.left)
     def.counters = def.counters or {}
-    def.rules = def.rules or {}
-    def.romanceNotes = def.romanceNotes or {}
+    def.rules = normalizeNotes(def.rules, def.id, "rule")
+    def.romanceNotes = normalizeNotes(def.romanceNotes, def.id, "romance note")
+    for _, counter in ipairs(def.counters) do
+        counter.act = counter.act or 0
+        if not VALID_ACTS[counter.act] then addError("%s counter '%s' has an invalid act", def.id, tostring(counter.id)) end
+        for _, item in ipairs(counter.items or {}) do
+            item.act = item.act or 0
+            if not VALID_ACTS[item.act] then addError("%s counter '%s' has an item with an invalid act", def.id, tostring(counter.id)) end
+        end
+    end
+    if def.revivable ~= nil and type(def.revivable) ~= "string" then
+        addError("%s: 'revivable' must be a sentence explaining how they can be revived before joining", def.id)
+        def.revivable = nil
+    end
 
     for i, step in ipairs(def.steps) do
         if type(step.id) ~= "string" then
@@ -302,6 +341,114 @@ function Guides.Describe(cond, comp)
         return table.concat(parts, (k == "any") and " OR " or " AND ")
     end
     return "?"
+end
+
+-- -----------------------------------------------------------------------------
+-- Plain-words explanations (shown to players under a step; no internal names)
+-- -----------------------------------------------------------------------------
+
+-- Typographic characters the IMGUI font cannot draw -> plain equivalents.
+local PUNCTUATION = {
+    ["\u{2018}"] = "'", ["\u{2019}"] = "'", ["\u{201C}"] = '"', ["\u{201D}"] = '"',
+    ["\u{2013}"] = "-", ["\u{2014}"] = " - ", ["\u{2026}"] = "...", ["\u{2022}"] = "-", ["\u{A0}"] = " ",
+}
+
+--- Strips markup and unprintable punctuation from text that comes from the game.
+function Guides.CleanText(s)
+    if type(s) ~= "string" then return nil end
+    s = string.gsub(s, "<br%s*/?>", " ")   -- line breaks become spaces
+    s = string.gsub(s, "<[^>]+>", "")      -- other markup (<i>, <b>, ...) just disappears
+    for from, to in pairs(PUNCTUATION) do s = string.gsub(s, from, to) end
+    s = string.gsub(s, "%s+", " ")
+    s = string.gsub(s, "^ ", "")
+    s = string.gsub(s, " $", "")
+    return s
+end
+
+local locaCache = {}
+
+--- The game's own text for a localisation handle, in the player's language (or nil).
+function Guides.Loca(handle)
+    if type(handle) ~= "string" or handle == "" then return nil end
+    local cached = locaCache[handle]
+    if cached ~= nil then return cached or nil end
+    local text = nil
+    if Ext.Loca and Ext.Loca.GetTranslatedString then
+        local ok, s = pcall(Ext.Loca.GetTranslatedString, handle)
+        if ok and type(s) == "string" and s ~= "" and s ~= handle then text = Guides.CleanText(s) end
+    end
+    if text == "" then text = nil end
+    locaCache[handle] = text or false
+    return text
+end
+
+function Guides.QuestTitle(quest)
+    return Guides.Loca(CR.QuestTitleHandles and CR.QuestTitleHandles[quest]) or (CR.QuestTitles and CR.QuestTitles[quest])
+end
+
+--- Shortens long journal text at a sentence or word boundary (never inside a UTF-8 character).
+local function shorten(s, max)
+    if #s <= max then return s end
+    local i = max
+    while i > 0 do
+        local b = string.byte(s, i + 1)
+        if not b or b < 0x80 or b >= 0xC0 then break end
+        i = i - 1
+    end
+    local cut = string.sub(s, 1, i)
+    local sentence = string.match(cut, "^(.*[%.!?])%s")
+    if sentence and #sentence >= max * 0.4 then return sentence end
+    return (string.match(cut, "^(.*)%s") or cut) .. "..."
+end
+
+local FLAG_PHRASES = {
+    { "^ORI_State_PartneredWith", "the game marks you as partnered with %s" },
+    { "^ORI_State_WasPartneredWith", "the game marks %s as a former partner" },
+    { "^ORI_State_Dating", "the game marks you as dating %s" },
+    { "^ORI_State_ChosePartnerOver", "you chose another partner over %s" },
+    { "^NIGHT_", "this camp scene has played" },
+    { "^GLO_Origin_PartOfTheTeam_", "%s joined your team" },
+    { "^VISITEDREGION_", "you have reached that region" },
+}
+local GENERIC_FLAG = {
+    done = "the game recorded this moment",
+    fail = "the game recorded an event that closes this step",
+    skip = "the game recorded a different path",
+}
+
+--- What a condition means in words a player understands.
+--- @param mode string "done" | "fail" | "skip": only changes the wording of the fallback
+function Guides.Explain(cond, comp, mode)
+    mode = mode or "done"
+    if type(cond) ~= "table" then return GENERIC_FLAG[mode] end
+    local name = comp and comp.name or "this companion"
+    local k = cond.k
+    if k == "q" then
+        local text = Guides.Loca(CR.JournalHandles and CR.JournalHandles[cond.quest .. "/" .. cond.step])
+        if text then return 'your journal says "' .. shorten(text, 220) .. '"' end
+        local title = Guides.QuestTitle(cond.quest)
+        return "an entry in your journal" .. (title and (" (" .. title .. ")") or "")
+    elseif k == "f" then
+        for _, p in ipairs(FLAG_PHRASES) do
+            if string.find(cond.name, p[1]) then return string.format(p[2], name) end
+        end
+        return GENERIC_FLAG[mode]
+    elseif k == "rel" then
+        if cond.state == "partnered" then return "you are partnered with " .. name end
+        if cond.state == "dating" then return "you are dating " .. name end
+        return name .. " is a former partner"
+    elseif k == "rec" then
+        return name .. " is in your camp"
+    elseif k == "dead" then
+        return name .. " is dead"
+    elseif k == "ko" then
+        return name .. " was knocked out instead of killed"
+    elseif k == "prog" then
+        return "you have passed that point in the story"
+    elseif (k == "any" or k == "all") and cond.list and cond.list[1] then
+        return Guides.Explain(cond.list[1], comp, mode)
+    end
+    return GENERIC_FLAG[mode]
 end
 
 -- -----------------------------------------------------------------------------

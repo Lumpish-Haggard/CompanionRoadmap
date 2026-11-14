@@ -29,6 +29,23 @@ T.C = {
 T.C.avoid = T.C.bad
 T.Clear = { 0, 0, 0, 0 }
 T.NextRowBg = { 0.84, 0.71, 0.48, 0.07 }   -- faint gold band behind the NEXT step
+T.BarTrack = { 0.84, 0.71, 0.48, 0.14 }    -- empty part of a progress bar (visible at 0%)
+
+-- Companion pictures: texture resources declared in
+-- Public/CompanionRoadmap/Content/UI/[PAK]_UI/_merged.lsx. Each one points at a
+-- Photo Mode sticker that ships with the game; the mod contains no art.
+T.Portraits = {
+    Shadowheart = "0ce9a128-57d6-4f4e-83d6-fe906dbf7fdb",
+    Minthara = "bdf80ba4-8588-4da9-a9f6-36234531351f",
+    Karlach = "9a9e58b9-0cef-456c-b144-c0fdf72b0e7f",
+    Laezel = "578f10d3-8627-4f69-bdc0-5188b968db1f",
+    Astarion = "88bd30e6-e429-49f3-8563-0b2ad988f38d",
+    Gale = "8ff0524f-c546-4575-a4c3-90b2be611ecd",
+    Wyll = "d0a076ad-e9d5-4b4f-b60f-f3b43bd70599",
+    Halsin = "bd88c2d7-ecb0-4f35-80ce-37dfc2aee807",
+    Jaheira = "1640ca1a-5238-45ab-a9f3-a6888c453d1f",
+    Minsc = "586db842-cbd1-4045-8a2f-4bd73a1689e2",
+}
 
 -- Latin-1 punctuation used as ornaments
 T.DOT = "\u{B7}"
@@ -50,14 +67,17 @@ T.Status = {
     M = { label = "MISSED",   color = T.C.bad,   title = T.C.dim },
     X = { label = "N/A",      color = T.C.faint, title = T.C.faint },
     ["?"] = { label = "...",  color = T.C.faint, title = T.C.dim },
+    -- not a status of its own: how a TO DO step is shown when it is optional
+    OPT = { label = "OPTIONAL", color = T.C.dim, title = T.C.text },
 }
 
 -- Order used by the status legend
-T.StatusOrder = { "N", "A", "I", "P", "U", "D", "O", "M", "X" }
+T.StatusOrder = { "N", "A", "OPT", "I", "P", "U", "D", "O", "M", "X" }
 
 T.StatusHelp = {
     N = "The next thing to do for this companion.",
     A = "Can be done now.",
+    OPT = "Can be done now, but skipping it costs you nothing important.",
     I = "A step from an earlier act that the game never recorded. It may still be possible, or you did it in a way "
         .. "the game does not track. If you did it, check it off.",
     P = "Waits for an earlier step.",
@@ -215,6 +235,16 @@ function T.Tooltip(elem, text)
         return t
     end)
     return ok and line or nil
+end
+
+--- Adds a square picture from a texture resource (see T.Portraits). Returns nil if
+--- the element cannot be created. A texture that fails to load draws nothing, so
+--- callers must not rely on the picture for layout (no SameLine after it).
+function T.Image(parent, texture, size)
+    if not texture then return nil end
+    local ok, img = pcall(function() return parent:AddImage(texture, { size, size }) end)
+    if ok then return img end
+    return nil
 end
 
 -- -----------------------------------------------------------------------------

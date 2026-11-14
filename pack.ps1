@@ -5,8 +5,9 @@
 .DESCRIPTION
     1. Validates meta.lsx, Config.json and MCM_blueprint.json.
     2. Optionally re-validates the roadmap data against the game (tools/build_data.py).
-    3. Stages ONLY Mods/CompanionRoadmap into build/pak (README, tools and caches never
-       end up inside the pak) and packs it with Divine.exe.
+    3. Stages ONLY Mods/CompanionRoadmap and Public/CompanionRoadmap into build/pak
+       (README, tools and caches never end up inside the pak), converts the resource
+       definitions under Public from .lsx to .lsf, and packs it with Divine.exe.
     4. Lists the package to verify the expected files are inside.
     5. Writes dist/CompanionRoadmap.pak, dist/info.json and dist/CompanionRoadmap-<version>.zip
        (the zip is what you upload to Nexus; BG3 Mod Manager and Vortex both import it).
@@ -123,6 +124,21 @@ $stageMod = Join-Path $BuildDir "Mods\$ModName"
 New-Item -ItemType Directory -Force -Path (Split-Path $stageMod) | Out-Null
 Copy-Item -Recurse -Path $ModDir -Destination $stageMod
 
+# Public/<mod>: resource definitions (texture bank for the companion portraits).
+# The game loads the binary .lsf form, so the readable .lsx sources are converted here.
+$PublicDir = Join-Path $Root "Public\$ModName"
+if (Test-Path $PublicDir) {
+    $stagePublic = Join-Path $BuildDir "Public\$ModName"
+    New-Item -ItemType Directory -Force -Path (Split-Path $stagePublic) | Out-Null
+    Copy-Item -Recurse -Path $PublicDir -Destination $stagePublic
+    foreach ($lsx in (Get-ChildItem -LiteralPath $stagePublic -Recurse -Filter *.lsx)) {
+        $lsf = [System.IO.Path]::ChangeExtension($lsx.FullName, ".lsf")
+        & $Divine -g bg3 -a convert-resource -s $lsx.FullName -d $lsf -l warn
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $lsf)) { Fail "Could not convert $($lsx.Name) to .lsf" }
+        Remove-Item -LiteralPath $lsx.FullName -Force
+    }
+}
+
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 $PakPath = Join-Path $OutputDir "$ModName.pak"
 if (Test-Path $PakPath) { Remove-Item -Force $PakPath }
@@ -141,11 +157,14 @@ $required = @(
     "Mods/$ModName/ScriptExtender/Lua/BootstrapClient.lua",
     "Mods/$ModName/ScriptExtender/Lua/Data/Flags.lua"
 )
+if (Test-Path $PublicDir) { $required += "Public/$ModName/Content/UI/[PAK]_UI/_merged.lsf" }
 foreach ($file in $required) {
     if (-not ($listing | Select-String -SimpleMatch $file)) { Fail "Package is missing $file" }
 }
-$stray = $listing | Where-Object { $_ -and ($_ -notmatch "^Mods/$ModName/") }
-if ($stray) { Fail "Package contains files outside Mods/$ModName/: $($stray -join ', ')" }
+$stray = $listing | Where-Object { $_ -and ($_ -notmatch "^(Mods|Public)/$ModName/") }
+if ($stray) { Fail "Package contains files outside Mods/$ModName/ and Public/$ModName/: $($stray -join ', ')" }
+$sources = $listing | Where-Object { $_ -match "^Public/.*\.lsx" }
+if ($sources) { Fail "Package contains unconverted resource sources: $($sources -join ', ')" }
 $fileCount = ($listing | Where-Object { $_ }).Count
 Write-Host "Package verified ($fileCount files)." -ForegroundColor Green
 

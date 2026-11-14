@@ -25,15 +25,15 @@ CR.Guides.Register {
     },
 
     rules = {
-        "Rescue him from the Worg Pens before heading to the Mountain Pass trail or the Shadow-Cursed Lands - otherwise he is found dead in his cell.",
-        "Save the Grove (defeat the goblin leaders). Raiding the Grove loses him.",
-        "In Act 2, defend his portal until he returns - if it closes, he is lost in the Shadowfell.",
-        "Lift the shadow curse BEFORE leaving Act 2, or he stays behind and his romance never happens.",
+        { act = 1, "Rescue him from the Worg Pens before heading to the Mountain Pass trail or the Shadow-Cursed Lands - otherwise he is found dead in his cell." },
+        { act = 1, "Save the Grove (defeat the goblin leaders). Raiding the Grove loses him." },
+        { act = 2, "In Act 2, defend his portal until he returns - if it closes, he is lost in the Shadowfell." },
+        { act = 2, "Lift the shadow curse BEFORE leaving Act 2, or he stays behind and his romance never happens." },
     },
     romanceNotes = {
         "Halsin cannot be romanced until Act 3, after the shadow curse is lifted.",
-        "Already partnered? Ask your partner first: Shadowheart, Astarion and Karlach agree to share; Lae'zel, Wyll, Gale (and Minthara) refuse.",
-        "His relationship is open and non-exclusive.",
+        { act = 3, "Already partnered? Ask your partner first: Shadowheart, Astarion and Karlach agree to share; Lae'zel, Wyll, Gale (and Minthara) refuse." },
+        { act = 3, "His relationship is open and non-exclusive." },
     },
 
     steps = {

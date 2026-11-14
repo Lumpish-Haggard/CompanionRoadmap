@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Companion portraits for the roadmap window.
+  These entries only POINT at textures that ship with the game (the Photo Mode
+  companion stickers in Game.pak); no art is included in this mod.
+  pack.ps1 converts this file to _merged.lsf. The IDs are referenced from
+  ScriptExtender/Lua/UI/Theme.lua (T.Portraits); tools/build_data.py checks both.
+-->
+<save>
+	<version major="4" minor="0" revision="9" build="325" />
+	<region id="TextureBank">
+		<node id="TextureBank">
+			<children>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="0ce9a128-57d6-4f4e-83d6-fe906dbf7fdb" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Shadowheart" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers_CE_Stickers_Shadowheart_Grr.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Shadowheart" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="bdf80ba4-8588-4da9-a9f6-36234531351f" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Minthara" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers_CE_Stickers_Minthara_Stress.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Minthara" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="9a9e58b9-0cef-456c-b144-c0fdf72b0e7f" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Karlach" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers_CE_Stickers_Karlach_Hmph.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Karlach" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="578f10d3-8627-4f69-bdc0-5188b968db1f" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Laezel" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers__CE_Stickers_LaeZel_Dead.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Laezel" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="88bd30e6-e429-49f3-8563-0b2ad988f38d" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Astarion" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers_CE_Stickers_Astarion-Love.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Astarion" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="8ff0524f-c546-4575-a4c3-90b2be611ecd" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Gale" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers_CE_Stickers_Gale_Wink.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Gale" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="d0a076ad-e9d5-4b4f-b60f-f3b43bd70599" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Wyll" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers_CE_Stickers_Wyll_Smile.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Wyll" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="bd88c2d7-ecb0-4f35-80ce-37dfc2aee807" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Halsin" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers_CE_Stickers_Halsin_Cool.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Halsin" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="1640ca1a-5238-45ab-a9f3-a6888c453d1f" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Jaheira" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers_CE_Stickers_Jaheira_Smile.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Jaheira" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="586db842-cbd1-4045-8a2f-4bd73a1689e2" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Minsc" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers_CE_Stickers_Minc_Oh.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Minsc" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+			</children>
+		</node>
+	</region>
+</save>

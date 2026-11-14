@@ -26,18 +26,18 @@ CR.Guides.Register {
     },
 
     rules = {
-        "Good path: she must be KNOCKED OUT, never killed. Toggle Non-Lethal Attacks and land the final hit with a melee weapon or an unarmed strike.",
-        "Spells, ranged attacks, thrown items, surfaces (fire, acid) and damage-over-time (bleeding, burning, poison) still KILL her.",
-        "Once she is down, nobody may hit her again - stop area spells near her body.",
-        "Rescue her on your first visit to Moonrise Towers - going down into the Mind Flayer Colony leaves her behind for good.",
-        "She does not share: reaching her partner threshold ends every other romance automatically.",
+        { act = 1, "Good path: she must be KNOCKED OUT, never killed. Toggle Non-Lethal Attacks and land the final hit with a melee weapon or an unarmed strike." },
+        { act = 1, "Spells, ranged attacks, thrown items, surfaces (fire, acid) and damage-over-time (bleeding, burning, poison) still KILL her." },
+        { act = 1, "Once she is down, nobody may hit her again - stop area spells near her body." },
+        { act = 2, "Rescue her on your first visit to Moonrise Towers - going down into the Mind Flayer Colony leaves her behind for good." },
+        { act = 2, "She does not share: reaching her partner threshold ends every other romance automatically." },
     },
     romanceNotes = {
-        "Evil path only: a one-night stand at the goblin party (does not start a relationship).",
+        { act = 1, "Evil path only: a one-night stand at the goblin party (does not start a relationship)." },
         "Act 2/3: after her rescue, at 31+ approval she opens her mind to you before a long rest - imagine her as anything but 'a monster'.",
-        "Partnered automatically (and exclusively) at 50+ approval, or when Ketheric falls if you are only dating others.",
+        { act = 2, "Partnered automatically (and exclusively) at 50+ approval, or when Ketheric falls if you are only dating others." },
         "Act 3: entering the sealed Undercity Ruins with 40+ approval triggers her deepest confession.",
-        "Sleeping with Mizora ends the relationship.",
+        { act = 3, "Sleeping with Mizora ends the relationship." },
     },
 
     steps = {

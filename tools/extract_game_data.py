@@ -6,6 +6,8 @@ Uses LSLib's Divine.exe to extract:
   * every flag definition (Public/*/Flags)            -> tools/.cache/flags.tsv
   * the journal (quest_prototypes.lsx) + English text -> tools/.cache/quests.tsv
   * the Osiris story goals (Story/RawFiles/Goals)     -> tools/.cache/goals/
+  * the names of the Photo Mode sticker textures      -> tools/.cache/stickers.txt
+    (the companion portraits point at them; only the file names are stored)
 
 Run again after a game patch, then run build_data.py to re-validate the data.
 
@@ -163,7 +165,9 @@ def quest_step_flags(goals_dir):
 
 
 def index_quests(proto_path, loca, step_flags, out_path):
-    """quests.tsv columns: QuestID, StepID, quest title, journal text, flags that unlock it, dev comment."""
+    """quests.tsv columns: QuestID, StepID, quest title, journal text, flags that unlock it, dev comment,
+    title handle, text handle. The two localisation handles let the mod show the journal in the
+    player's own language without shipping any text."""
     tree = ET.parse(proto_path)
     n = 0
     with open(out_path, "w", encoding="utf-8") as fh:
@@ -184,9 +188,20 @@ def index_quests(proto_path, loca, step_flags, out_path):
                      for a in step.findall("attribute")}
                 text = clean(loca.get(s.get("Description", ""), ""))
                 flags = ",".join(sorted(step_flags.get((qid, s.get("ID")), ())))
-                fh.write("\t".join((qid, s.get("ID") or "", title, text, flags, clean(s.get("DevComment")))) + "\n")
+                fh.write("\t".join((qid, s.get("ID") or "", title, text, flags, clean(s.get("DevComment")),
+                                    clean(attrs.get("QuestTitle")), clean(s.get("Description")))) + "\n")
                 n += 1
     return n
+
+
+def index_stickers(exe, game_pak, out_path):
+    """File names of the Photo Mode sticker previews in Game.pak (used to validate the portrait texture bank)."""
+    prefix = "Mods/PhotoMode/GUI/Assets/Stickers/Preview/"
+    listing = divine(exe, "-a", "list-package", "-s", game_pak)
+    paths = sorted({line.split("\t")[0].strip() for line in listing.splitlines() if line.startswith(prefix)})
+    with open(out_path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(paths) + ("\n" if paths else ""))
+    return len(paths)
 
 
 def main():
@@ -253,6 +268,11 @@ def main():
     proto = os.path.join(work, "Mods", "GustavDev", "Story", "Journal", "quest_prototypes.lsx")
     n = index_quests(proto, loca, quest_step_flags(goals_out), os.path.join(cache, "quests.tsv"))
     print(f"  {n} journal steps")
+
+    game_pak = os.path.join(data, "Game.pak")
+    if os.path.exists(game_pak):
+        n = index_stickers(exe, game_pak, os.path.join(cache, "stickers.txt"))
+        print(f"  {n} Photo Mode stickers")
 
     shutil.rmtree(work, ignore_errors=True)
     print("Done. Cache:", cache)

@@ -4,8 +4,11 @@
 --   * clients say Hello (and whether their window is open)
 --   * Osiris events for watched flags / journal steps / approval mark the state dirty
 --   * a short debounce later, each player gets a fresh snapshot (if their window is
---     open) and "completed / missed" toasts for steps that changed
+--     open) and "completed / missed" toasts for steps that changed; toasts wait
+--     until that player is out of a conversation
 --   * manual check-offs are stored per savegame in a mod variable
+--   * "!roadmap report" (or the button in Options) writes what the tracker sees to
+--     a file for bug reports
 -- =============================================================================
 
 CR.Server = CR.Server or {}
@@ -14,6 +17,9 @@ local Guides = CR.Guides
 local S = CR.Status
 
 local DEBOUNCE_MS = 400
+local TOAST_RETRY_MS = 3000       -- re-check while a player is still in a conversation
+local TOAST_MAX_WAIT_MS = 120000  -- never hold a notice longer than this
+local REPORT_FILE = "CompanionRoadmap/report.json"
 
 Srv.Peers = {}            -- peerId -> { open = bool, last = { stepId -> status }, baseline = bool }
 Srv.Ready = false
@@ -133,6 +139,50 @@ local function statusMap(snap)
     return m
 end
 
+-- -----------------------------------------------------------------------------
+-- Toast delivery: never interrupt a conversation or a camp scene
+-- -----------------------------------------------------------------------------
+local function inDialog(avatar)
+    return avatar ~= nil and CR.Eval.DbHasRows("DB_DialogPlayers", nil, avatar, nil)
+end
+
+local function queueToasts(p, items)
+    p.pending = p.pending or {}
+    p.pendingSince = p.pendingSince or CR.Now()
+    for _, item in ipairs(items) do
+        -- one notice per step: the latest status wins
+        for i = #p.pending, 1, -1 do
+            if p.pending[i].id == item.id then table.remove(p.pending, i) end
+        end
+        table.insert(p.pending, item)
+    end
+end
+
+--- Sends queued notices to every player who is not in a conversation right now.
+function Srv.DeliverToasts()
+    if Srv.ToastTimer then CR.CancelTimer(Srv.ToastTimer) end
+    Srv.ToastTimer = nil
+    local waiting = false
+    for peer, p in pairs(Srv.Peers) do
+        if p.pending and #p.pending > 0 then
+            local held = CR.Now() - (p.pendingSince or 0)
+            if held < TOAST_MAX_WAIT_MS and inDialog(Srv.AvatarForPeer(peer)) then
+                waiting = true
+            else
+                local items = p.pending
+                p.pending, p.pendingSince = nil, nil
+                pcall(function() CR.Net.Toast:SendToClient({ items = items }, peer) end)
+            end
+        end
+    end
+    if waiting then
+        Srv.ToastTimer = CR.After(TOAST_RETRY_MS, function()
+            Srv.ToastTimer = nil
+            CR.Guard("toasts", Srv.DeliverToasts)
+        end)
+    end
+end
+
 function Srv.RefreshPeer(peer, forceSend)
     local p = Srv.Peers[peer]
     if not p then return end
@@ -151,7 +201,8 @@ function Srv.RefreshPeer(peer, forceSend)
     if not p.baseline then
         local items = diff(p.last, snap)
         if #items > 0 then
-            pcall(function() CR.Net.Toast:SendToClient({ items = items }, peer) end)
+            queueToasts(p, items)
+            Srv.DeliverToasts()
         end
     end
     p.last = statusMap(snap)
@@ -234,6 +285,12 @@ function Srv.Init()
     if not CR.Net.Ready then return end
     CR.Net.Hello:SetHandler(function(msg, peer) CR.Guard("Hello", onHello, msg, peer) end)
     CR.Net.Override:SetHandler(function(msg, peer) CR.Guard("Override", onOverride, msg, peer) end)
+    CR.Net.Report:SetHandler(function(_, peer)
+        CR.Guard("Report", function()
+            local ok, info = Srv.WriteReport(Srv.AvatarForPeer(peer))
+            pcall(function() CR.Net.Report:SendToClient({ ok = ok, info = info, file = REPORT_FILE }, peer) end)
+        end)
+    end)
 
     listen("FlagSet", 3, function(flag) onFlag(flag) end)
     listen("FlagCleared", 3, function(flag) onFlag(flag) end)
@@ -243,9 +300,18 @@ function Srv.Init()
     listen("ApprovalRatingChanged", 3, function(npc)
         if isTrackedCharacter(npc) then Srv.MarkDirty() end
     end)
-    for _, ev in ipairs({ "Died", "CharacterJoinedParty", "CharacterLeftParty" }) do
+    for _, ev in ipairs({ "Died", "Resurrected", "CharacterJoinedParty", "CharacterLeftParty" }) do
         listen(ev, 1, function(ch) if isTrackedCharacter(ch) then Srv.MarkDirty() end end)
     end
+    -- a conversation just ended: deliver the notices that were waiting for it
+    listen("DialogEnded", 2, function()
+        for _, p in pairs(Srv.Peers) do
+            if p.pending and #p.pending > 0 then
+                CR.After(800, function() CR.Guard("toasts", Srv.DeliverToasts) end)
+                return
+            end
+        end
+    end)
     listen("LevelGameplayStarted", 2, function()
         Srv.Ready = false
         Srv.CheckReady()
@@ -260,7 +326,157 @@ function Srv.Init()
 end
 
 -- -----------------------------------------------------------------------------
--- Console: !roadmap [diag|steps <Companion>|resetoverrides|debug]
+-- Report: everything the tracker sees, as one JSON file.
+-- Attach it to a bug report; tools/test_harness.py can replay it as a test.
+-- It holds game identifiers only: no names, no account or system details.
+-- -----------------------------------------------------------------------------
+
+--- Reads every flag and journal step the guides watch, on every target the flag
+--- allows, so the report also shows what was NOT set.
+local function probeEverything(ctx)
+    local function probe(cond, comp)
+        if type(cond) ~= "table" then return end
+        if cond.k == "f" then
+            local entry = CR.Flags[cond.name]
+            if entry then
+                local guid, usage = entry[1], entry[2] or 0
+                if usage & 1 ~= 0 then ctx:Flag(guid, CR.NULL) end
+                if usage & 4 ~= 0 then
+                    if ctx.avatar then ctx:Flag(guid, ctx.avatar) end
+                    if comp then ctx:Flag(guid, comp.uuid) end
+                end
+            end
+        elseif cond.k == "q" then
+            ctx:Quest(cond.quest, cond.step)
+        elseif cond.k == "any" or cond.k == "all" then
+            for _, c in ipairs(cond.list or {}) do probe(c, comp) end
+        elseif cond.k == "not" then
+            probe(cond.c, comp)
+        end
+    end
+    for _, comp in ipairs(Guides.Companions) do
+        probe(comp.recruited, comp)
+        for _, c in ipairs(comp.left) do probe(c, comp) end
+        if comp.romance then
+            for _, key in ipairs({ "dating", "partnered", "ex" }) do probe(comp.romance[key], comp) end
+            local closed = comp.romance.closed
+            if type(closed) == "table" then
+                if closed.k then probe(closed, comp) else for _, c in ipairs(closed) do probe(c, comp) end end
+            end
+        end
+        for _, counter in ipairs(comp.counters) do
+            for _, item in ipairs(counter.items or {}) do probe(item.cond, comp) end
+            probe(counter.reached, comp)
+        end
+        for _, step in ipairs(comp.steps) do
+            for _, list in ipairs({ step.done, step.fail, step.skip }) do
+                for _, c in ipairs(list) do probe(c, comp) end
+            end
+        end
+    end
+end
+
+--- Up to `limit` rows of a database with `columns` columns, mapped through `pick`.
+local function dbDump(name, columns, pick, limit)
+    local rows = CR.Eval.DbRows(name, table.unpack({}, 1, columns))
+    local out = {}
+    for i, row in ipairs(rows or {}) do
+        if i > (limit or 400) then break end
+        out[#out + 1] = pick(row)
+    end
+    return out
+end
+
+function Srv.BuildReport(avatar)
+    local E = CR.Eval
+    local snap, ctx = E.BuildSnapshot(avatar, Srv.GetOverrides())
+    probeEverything(ctx)
+
+    local flags, quests = {}, {}
+    for key, value in pairs(ctx.cache) do
+        if value == true then
+            if string.sub(key, 1, 2) == "q:" then
+                quests[#quests + 1] = string.sub(key, 3)
+            elseif string.find(key, "@", 1, true) then
+                local guid, target = string.match(key, "^(.-)@(.*)$")
+                flags[#flags + 1] = guid .. "@" .. (CR.Guid(target) or target)
+            end
+        end
+    end
+    table.sort(flags)
+    table.sort(quests)
+
+    local companions = {}
+    for _, comp in ipairs(Guides.Companions) do
+        ctx.comp = comp
+        local approval = avatar and osi(Osi.GetApprovalRating, comp.uuid, avatar) or nil
+        companions[comp.id] = {
+            uuid = comp.uuid,
+            dead = ctx:IsDead(comp),
+            perma = ctx:IsPermaDefeated(comp),
+            team = E.DbHasRows("DB_PartOfTheTeam", comp.uuid),
+            ko = ctx:KnockedOut(comp),
+            approval = type(approval) == "number" and math.floor(approval) or nil,
+            dating = avatar ~= nil and E.DbHasRows("DB_ORI_Dating", avatar, comp.uuid),
+            partnered = avatar ~= nil and E.DbHasRows("DB_ORI_Partnered", avatar, comp.uuid),
+            info = snap.comps[comp.id],
+        }
+    end
+    ctx.comp = nil
+
+    local overrides = {}
+    for id, v in pairs(Srv.GetOverrides()) do if v then overrides[#overrides + 1] = id end end
+    table.sort(overrides)
+
+    local function version(fn)
+        if not fn then return nil end
+        local ok, v = pcall(fn)
+        if ok and v ~= nil then return tostring(v) end
+        return nil
+    end
+
+    local report = {
+        format = 1,
+        mod = CR.Version,
+        se = version(Ext.Utils and Ext.Utils.Version),
+        game = version(Ext.Utils and Ext.Utils.GameVersion),
+        level = snap.level,
+        act = snap.act,
+        markers = snap.markers,
+        avatar = avatar and CR.Guid(avatar) or nil,
+        overrides = overrides,
+        steps = snap.steps,
+        raw = { flags = flags, quests = quests, companions = companions },
+    }
+
+    -- the camp scheduler, for the "tonight at camp" work (best effort)
+    local okCamp, camp = pcall(function()
+        return {
+            nights = dbDump("DB_CampNight", 2, function(r) return { tostring(r[1]), r[2] } end),
+            completed = dbDump("DB_CampNight_Completed", 1, function(r) return tostring(r[1]) end),
+            expiring = dbDump("DB_CampNight_StartedExpiring", 2, function(r) return { tostring(r[1]), r[2] } end),
+        }
+    end)
+    if okCamp then report.camp = camp end
+    return report
+end
+
+--- Writes the report next to the mod's settings. Returns ok, short description.
+function Srv.WriteReport(avatar)
+    if not Srv.CheckReady() then return false, "The game is not ready yet - load a save first." end
+    local ok, report = pcall(Srv.BuildReport, avatar)
+    if not ok then return false, "Could not build the report: " .. tostring(report) end
+    local okJson, json = pcall(Ext.Json.Stringify, report)
+    if not okJson or type(json) ~= "string" then return false, "Could not encode the report." end
+    if not (Ext.IO and Ext.IO.SaveFile) then return false, "This Script Extender version cannot write files." end
+    local okSave = pcall(Ext.IO.SaveFile, REPORT_FILE, json)
+    if not okSave then return false, "Could not write the report file." end
+    return true, string.format("%d steps, %d flags, %d journal entries", CR.Count(report.steps),
+        #report.raw.flags, #report.raw.quests)
+end
+
+-- -----------------------------------------------------------------------------
+-- Console: !roadmap [diag|steps <Companion>|report|resetoverrides|debug]
 -- -----------------------------------------------------------------------------
 local STATUS_NAMES = {
     D = "done", O = "checked", N = "NEXT", A = "available", P = "pending",
@@ -279,6 +495,14 @@ function Srv.RegisterConsole()
             for _, p in pairs(Srv.Peers) do p.baseline = true end
             Srv.Flush()
             CR.Info("All manual check-offs cleared for this save.")
+        elseif sub == "report" then
+            local ok, info = Srv.WriteReport(Srv.AvatarForPeer(nil))
+            if ok then
+                CR.Info("Report written (%s) to the Script Extender folder:", info)
+                CR.Info("  Script Extender/%s", REPORT_FILE)
+            else
+                CR.Warn("%s", info)
+            end
         elseif sub == "steps" then
             local comp = Guides.Get(arg or "")
             if not comp then CR.Info("Usage: !roadmap steps <Shadowheart|Minthara|...>") return end

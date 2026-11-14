@@ -64,5 +64,7 @@ body:
     id: diagnostics
     attributes:
       label: Tracker output (for detection problems)
-      description: Output of `!roadmap steps <Companion>` typed in the server console while the affected save is loaded.
+      description: >-
+        If the roadmap showed the wrong status: attach `report.json` (Options > "Create a report file", or `!roadmap report`
+        in the server console) or paste the output of `!roadmap steps <Companion>`, with the affected save loaded.
       render: text

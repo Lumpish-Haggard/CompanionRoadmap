@@ -18,6 +18,8 @@ CR.Guides.Register {
     romanceable = true,
 
     recruited = G("GLO_Origin_PartOfTheTeam_Laezel"),
+    -- bg3.wiki (Lae'zel): her body can be revived and she can still be invited to join
+    revivable = "If she died on the Nautiloid or fighting beside you at the mountain pass, a Scroll of Revivify brings her back and she can still join you.",
     left = {
         Q(LZ, "CompanionLowRelation"), Q(LZ, "LaezelDied_Generic"), Q(LZ, "LaezelTurnedHostile_Generic"),
         Q(LZ, "LaezelDied_KilledByShadowheart"), Q(LZ, "LaezelDied_KilledAtCampNight"), Q(LZ, "TurnedHostileAtChokepoint"),
@@ -32,17 +34,17 @@ CR.Guides.Register {
     },
 
     rules = {
-        "Free her from the tiefling cage near the crash site early - fighting her or leaving her there loses her.",
-        "When she and Shadowheart fight at camp, calm them down; a death here is permanent.",
-        "Pull her out of the zaith'isk in the Creche if it starts killing her.",
+        { act = 1, "Free her from the tiefling cage near the crash site early - fighting her or leaving her there loses her." },
+        { act = 1, "When she and Shadowheart fight at camp, calm them down; a death here is permanent." },
+        { act = 1, "Pull her out of the zaith'isk in the Creche if it starts killing her." },
         "She hates shared love: committing to someone else ends her romance.",
     },
     romanceNotes = {
         "Act 1: at 20+ approval she propositions you after a big fight (hag, ogres, owlbear, spider matriarch) - or ask 'Is it just me, or have you been looking at me differently lately?'.",
-        "The camp celebration also works (20+ approval, not dating two others).",
+        { act = 1, "The camp celebration also works (20+ approval, not dating two others)." },
         "Act 2: dating + one night passed + visited Last Light Inn or Moonrise -> night duel -> Partnered.",
         "Act 3: one night after Vlaakith's visit, long rest in the Lower City for the sunrise scene.",
-        "If she stays loyal to Vlaakith, she ends the relationship in Act 3.",
+        { act = 3, "If she stays loyal to Vlaakith, she ends the relationship in Act 3." },
     },
 
     steps = {

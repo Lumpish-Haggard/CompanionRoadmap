@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows [Kee
 
 Nothing yet.
 
+## [1.0.1] - 2026-11-14
+
+### Fixed
+- A companion who died **before joining** was shown as "Dead - revive" and counted in "Before you move on". They are now marked as lost ("Died before joining"), because in most cases they can no longer be revived or recruited. Wyll (goblin attack on the Grove) and Lae'zel are the documented exceptions and say how to bring them back.
+- **Spoilers**: golden rules, romance notes and the details of trackers (for example Shadowheart's hidden score) ignored the spoiler setting. Each one is now tied to an act and hidden until you reach it, unless you choose to see everything.
+- A companion who was **revived** stayed "dead" until something else changed.
+- "Detected" and "Missed" lines showed internal names. They now quote the game's own journal entry, in your game's language, or use a plain sentence.
+- An optional step that can be done now is labelled `OPTIONAL` instead of `TO DO`, so it no longer looks more urgent than the `NEXT` step below it.
+- Notices no longer appear in the middle of a conversation or camp scene; they wait until it ends.
+- The status column was too narrow in the legend, and an empty progress bar was invisible.
+
+### Added
+- **First-run question**: how much may the roadmap reveal about acts you have not reached? Until you answer, later acts stay hidden.
+- **Report file**: *Options > Create a report file* (or `!roadmap report`) writes everything the tracker sees to `report.json`. Attach it to bug reports; it contains game identifiers only.
+- **Companion portraits** (experimental): the game's own Photo Mode stickers next to each companion. No art is shipped; the mod points at files in your game. Can be switched off.
+- **Esc** closes the roadmap (can be switched off).
+- Developer tooling: report files replay as regression tests (`tests/fixtures`), the validator checks the portrait definitions against the game, and journal text is resolved through localisation handles instead of being stored.
+
 ## [1.0.0] - 2026-11-13
 
 First public release. A full rebuild of an earlier prototype that could not run in game.
@@ -43,5 +61,6 @@ First public release. A full rebuild of an earlier prototype that could not run 
   - Wyll's romance only starts at the Tiefling party and needs Duke Ravengard alive; rescuing Mizora is what keeps Wyll himself alive.
   - Gale leaves only if you refuse the first magic item.
 
-[Unreleased]: ../../compare/v1.0.0...HEAD
-[1.0.0]: ../../releases/tag/v1.0.0
+[Unreleased]: ../../compare/v1.0.1...HEAD
+[1.0.1]: ../../releases/tag/v1.0.1
+[1.0.0]: ../../releases/tag/Latest

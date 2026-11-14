@@ -6,6 +6,7 @@
 --   * without MCM: a built-in key handler (default F7), rebindable from the
 --     overlay's Options panel
 --   * always: the SE console command  !roadmap
+-- Esc closes the window while it is open (can be turned off in the options).
 --
 -- F8 is NOT used: it is Baldur's Gate 3's default Quickload key.
 -- Default BG3 binds F1-F5, F8 and F10; F6, F7, F9 and F11 are free.
@@ -79,6 +80,13 @@ local function onKey(e)
         end
         pcall(function() e:PreventAction() end)
         if cap.onDone then CR.Guard("hotkey capture", cap.onDone) end
+        return
+    end
+
+    -- Esc closes the roadmap like any other panel, and is not passed on to the game
+    if key == "ESCAPE" and CR.UI.IsOpen() and Set.Get("escCloses") then
+        CR.UI.SetOpen(false)
+        pcall(function() e:PreventAction() end)
         return
     end
 

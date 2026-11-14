@@ -93,6 +93,8 @@ The server maps a peer to its avatar with `GetReservedUserID` on `DB_Avatars` (f
 
 - The main window is created lazily on first open and never rebuilt. A companion page is built when selected; later refreshes only change labels, colours and visibility, so scroll position, expanded steps and the selected tab survive live updates.
 - Interactive elements whose label changes use ImGui's `Label###stableId` syntax so their state is kept.
+- Notices are queued on the server while the player is in a conversation (`DB_DialogPlayers`) and delivered when it ends.
+- Journal text is never stored: `Data/Flags.lua` carries localisation handles and the client resolves them with `Ext.Loca.GetTranslatedString`, then replaces typographic characters the font cannot draw.
 - The SE IMGUI font covers only ASCII + Latin-1. All UI text is validated for that; the only ornaments are Latin-1 (middle dot, right guillemet, multiplication sign).
 - Top-level window sizes are absolute pixels (SE applies `SetSize` before a window's `Scaling`), so the first-run size is derived from `Ext.IMGUI.GetViewportSize()`. Inner elements use `Scaling = "Scaled"`.
 - Look and feel (`UI/Theme.lua`): a near-black translucent window with a hairline bronze border, parchment text, gold headings, and colour reserved for meaning (next, done, missed, romance, deadlines).
@@ -100,6 +102,14 @@ The server maps a peer to its avatar with `GetReservedUserID` on `DB_Avatars` (f
 - SE scales its base style by viewport height / 1610 but pushes per-element style values unscaled, so the theme multiplies its padding and spacing by the same factor.
 - Steps are rows of a two-column table (status | expandable step). The status text has a hover tooltip; the NEXT row gets a faint background band by pushing `TableRowBg` on that row only.
 - Tabs are switched in code with the `SetSelected` flag, which is cleared again after 300 ms; otherwise the tab would stay forced.
+
+## Portraits
+
+`Public/CompanionRoadmap/Content/UI/[PAK]_UI/_merged.lsx` declares one texture resource per companion. Each resource only points at a Photo Mode sticker inside the game's own `Game.pak`, so the mod ships no art. `pack.ps1` converts the file to `.lsf`. `UI/Theme.lua` (`T.Portraits`) maps companions to the resource ids and `AddImage` draws them. A texture that fails to load draws nothing, so pictures always sit in their own table cell and never anchor the layout. `build_data.py` checks that the ids match and, with the game cache, that every referenced sticker exists.
+
+## Report file
+
+`!roadmap report` and *Options > Create a report file* make the server write `Script Extender/CompanionRoadmap/report.json`: the snapshot, every watched flag and journal step that is set (probed on every target the flag allows), the raw per-companion facts (dead, permanently defeated, in the team, knocked out, approval, dating, partnered) and the camp scheduler tables. It holds game identifiers only. `tools/test_harness.py` can rebuild a world from a report (`replay_report`), which turns bug reports into regression tests: put the file in `tests/fixtures/` and optionally add an `"expect": { "STEP_ID": "D" }` object.
 
 ## Hotkey
 

@@ -21,9 +21,12 @@ Set.Defaults = {
     notifications = true,                 -- toasts when a step is completed or missed
     notifyAll = false,                    -- false: only romance / critical steps
     spoilers = "full",                    -- "full" | "titles" | "hide"
+    spoilersChosen = false,               -- the first-run question about spoilers was answered
     hideCompleted = false,
     romanceOnly = false,
     showTracking = false,                 -- show which flag/journal entry each step watches
+    portraits = true,                     -- companion pictures (the game's Photo Mode stickers)
+    escCloses = true,                     -- Esc closes the roadmap window
     opacity = 0.95,
     lastCompanion = "Shadowheart",
 }
@@ -36,6 +39,8 @@ local MCM_IDS = {
     hideCompleted = "hide_completed",
     romanceOnly = "romance_only",
     showTracking = "show_tracking",
+    portraits = "portraits",
+    escCloses = "esc_closes",
     opacity = "window_opacity",
 }
 local MCM_KEY_BY_ID = {}
@@ -124,8 +129,17 @@ function Set.Get(key)
     return v
 end
 
+--- The spoiler level actually applied. Until the player has answered the first-run
+--- question (or changed the setting anywhere), nothing from later acts is revealed.
+function Set.Spoilers()
+    local level = Set.Get("spoilers")
+    if level == "full" and not Set.Get("spoilersChosen") then return "titles" end
+    return level
+end
+
 function Set.Set(key, value)
     Set.values[key] = value
+    if key == "spoilers" then Set.values.spoilersChosen = true end  -- any choice answers the first-run question
     local id = MCM_IDS[key]
     if id and Set.mcm and Set.mcm.Set then
         CR.Try(Set.mcm.Set, id, toMcm(key, value))
@@ -159,6 +173,7 @@ function Set.AttachMCM()
                 local key = MCM_KEY_BY_ID[payload.settingId]
                 if key then
                     Set.values[key] = fromMcm(key, payload.value)
+                    if key == "spoilers" then Set.values.spoilersChosen = true end
                     Set.Save()
                     notify(key)
                 end

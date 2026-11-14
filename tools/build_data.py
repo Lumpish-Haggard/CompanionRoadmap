@@ -11,8 +11,15 @@ What it checks
 
 What it writes
   * Mods/CompanionRoadmap/ScriptExtender/Lua/Data/Flags.lua
-      CR.Flags       = { FlagName = { "guid", usage }, ... }   (only referenced flags)
-      CR.QuestTitles = { QuestID = "Journal title", ... }
+      CR.Flags             = { FlagName = { "guid", usage }, ... }   (only referenced flags)
+      CR.QuestTitles       = { QuestID = "Journal title", ... }        (English fallback)
+      CR.QuestTitleHandles = { QuestID = "localisation handle", ... }
+      CR.JournalHandles    = { ["QuestID/StepID"] = "localisation handle", ... }
+    The handles let the mod quote the journal in the player's own language at
+    runtime; no journal text is stored.
+
+It also checks the companion portraits: UI/Theme.lua (T.Portraits), the texture bank
+under Public/ and, with the game cache, the sticker files the bank points at.
 
 Inputs come from extract_game_data.py (run that first; it reads your BG3 install).
 
@@ -64,10 +71,17 @@ def load_flags(path):
     return flags
 
 
+HANDLE_RE = re.compile(r'^h[0-9a-f]{8}g[0-9a-f]{4}g[0-9a-f]{4}g[0-9a-f]{4}g[0-9a-f]{12}$')
+
+
 def load_quests(path):
-    """quests.tsv: QuestID <tab> StepID <tab> Title (title repeated per row)."""
+    """quests.tsv: QuestID, StepID, title, text, flags, dev comment, title handle, text handle.
+
+    Returns steps per quest, English titles, and the localisation handles of the
+    quest titles and of each step's journal text (empty for caches made by an older
+    extract_game_data.py: run it again to get them)."""
     steps = defaultdict(set)
-    titles = {}
+    titles, title_handles, step_handles = {}, {}, {}
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             parts = line.rstrip("\n").split("\t")
@@ -77,7 +91,12 @@ def load_quests(path):
             steps[quest].add(step)
             if title:
                 titles[quest] = title
-    return steps, titles
+            if len(parts) >= 8:
+                if HANDLE_RE.match(parts[6]):
+                    title_handles[quest] = parts[6]
+                if HANDLE_RE.match(parts[7]):
+                    step_handles[(quest, step)] = parts[7]
+    return steps, titles, title_handles, step_handles
 
 
 def load_story_usage(goals_dir):
@@ -162,14 +181,71 @@ GUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 MOD_DIR = os.path.join(ROOT, "Mods", "CompanionRoadmap")
 
 
+def generated_block(text, name):
+    """The body of one `CR.<name> = { ... }` table in the generated Data/Flags.lua."""
+    m = re.search(r'\nCR\.' + re.escape(name) + r' = \{\n(.*?)\n\}', text, re.S)
+    return m.group(1) if m else ""
+
+
 def load_generated(path):
     """Flags and quest titles from the committed Data/Flags.lua (offline mode)."""
     text = open(path, encoding="utf-8").read()
-    flags_part, _, titles_part = text.partition("\nCR.QuestTitles = {")
     flags = {m.group(1): {"guid": m.group(2), "usage": int(m.group(3)), "desc": ""}
-             for m in RE_GEN_FLAG.finditer(flags_part)}
-    titles = {m.group(1) for m in RE_GEN_TITLE.finditer(titles_part)}
+             for m in RE_GEN_FLAG.finditer(generated_block(text, "Flags"))}
+    titles = {m.group(1) for m in RE_GEN_TITLE.finditer(generated_block(text, "QuestTitles"))}
     return flags, titles
+
+
+TEXTURE_BANK = os.path.join(ROOT, "Public", "CompanionRoadmap", "Content", "UI", "[PAK]_UI", "_merged.lsx")
+
+
+def check_portraits(errors, warnings, cache):
+    """The companion portraits: Theme.lua's T.Portraits, the texture bank and (with the
+    game cache) the sticker files in Game.pak must all agree."""
+    def rel(p):
+        return os.path.relpath(p, ROOT)
+
+    theme = os.path.join(LUA_DIR, "UI", "Theme.lua")
+    block = re.search(r'T\.Portraits = \{(.*?)\n\}', open(theme, encoding="utf-8").read(), re.S)
+    wanted = dict(re.findall(r'(\w+)\s*=\s*"([0-9a-f-]{36})"', block.group(1))) if block else {}
+    if not wanted:
+        return
+    if not os.path.exists(TEXTURE_BANK):
+        errors.append(f"{rel(theme)}: T.Portraits is defined but {rel(TEXTURE_BANK)} does not exist")
+        return
+    try:
+        tree = ET.parse(TEXTURE_BANK)
+    except ET.ParseError as e:
+        errors.append(f"{rel(TEXTURE_BANK)}: {e}")
+        return
+    bank = {}
+    for node in tree.iter("node"):
+        if node.get("id") != "Resource":
+            continue
+        attrs = {a.get("id"): a.get("value") for a in node.findall("attribute")}
+        if not GUID_RE.match(attrs.get("ID") or ""):
+            errors.append(f"{rel(TEXTURE_BANK)}: resource '{attrs.get('Name')}' has an invalid ID")
+            continue
+        if attrs["ID"] in bank:
+            errors.append(f"{rel(TEXTURE_BANK)}: duplicate resource ID {attrs['ID']}")
+        bank[attrs["ID"]] = attrs.get("SourceFile") or ""
+    for name, guid in sorted(wanted.items()):
+        if guid not in bank:
+            errors.append(f"{rel(theme)}: portrait '{name}' uses {guid}, which is not declared in {rel(TEXTURE_BANK)}")
+    for guid in sorted(set(bank) - set(wanted.values())):
+        warnings.append(f"{rel(TEXTURE_BANK)}: resource {guid} is not used by T.Portraits")
+
+    order = re.search(r'Guides\.Order = \{(.*?)\}', open(os.path.join(DATA_DIR, "CompanionGuides.lua"), encoding="utf-8").read(), re.S)
+    for comp in re.findall(r'"(\w+)"', order.group(1)) if order else []:
+        if comp not in wanted:
+            warnings.append(f"{rel(theme)}: companion '{comp}' has no portrait")
+
+    stickers = os.path.join(cache, "stickers.txt") if cache else None
+    if stickers and os.path.exists(stickers):
+        known = {line.strip() for line in open(stickers, encoding="utf-8") if line.strip()}
+        for guid, source in sorted(bank.items()):
+            if source not in known:
+                errors.append(f"{rel(TEXTURE_BANK)}: '{source}' does not exist in the game's Game.pak")
 
 
 def check_metadata(errors):
@@ -247,6 +323,7 @@ def main():
 
     story = None
     quest_steps, quest_titles, known_titles = None, {}, set()
+    title_handles, step_handles = {}, {}
     if args.offline:
         flags, known_titles = load_generated(FLAGS_OUT)
     else:
@@ -257,12 +334,15 @@ def main():
             if not os.path.exists(p):
                 sys.exit(f"Missing {p}. Run tools/extract_game_data.py first (or use --offline).")
         flags = load_flags(flags_tsv)
-        quest_steps, quest_titles = load_quests(quests_tsv)
+        quest_steps, quest_titles, title_handles, step_handles = load_quests(quests_tsv)
         story = load_story_usage(goals_dir) if os.path.isdir(goals_dir) else None
 
     errors, warnings = [], []
-    used_flags, used_quests = {}, set()
+    used_flags, used_quests, used_steps = {}, set(), set()
     check_metadata(errors)
+    check_portraits(errors, warnings, None if args.offline else args.cache)
+    if quest_steps is not None and not step_handles:
+        warnings.append("tools/.cache/quests.tsv has no localisation handles - run tools/extract_game_data.py again")
 
     lua_files = []
     for root, _, files in os.walk(LUA_DIR):
@@ -289,6 +369,8 @@ def main():
                 errors.append(f"{rel}: unknown quest '{quest}'")
             elif step not in quest_steps[quest]:
                 errors.append(f"{rel}: quest '{quest}' has no step '{step}'")
+            else:
+                used_steps.add((quest, step))
         for name, on in flag_refs:
             info = flags.get(name)
             if info is None:
@@ -326,7 +408,9 @@ def main():
         "-- Data/Flags.lua - GENERATED by tools/build_data.py from the game's own data.",
         "-- Do not edit by hand: change the companion files and re-run the tool.",
         "--   CR.Flags[name]       = { guid, usage }  usage bits: 1 global, 2 dialog, 4 object",
-        "--   CR.QuestTitles[id]   = journal title",
+        "--   CR.QuestTitles[id]   = journal title (English fallback)",
+        "--   CR.QuestTitleHandles[id], CR.JournalHandles[quest/step] = localisation handles, so the",
+        "--   journal can be quoted in the player's own language without storing any of its text",
         "-- =============================================================================",
         "",
         "CR.Flags = {",
@@ -339,6 +423,16 @@ def main():
         for q in (quest, "ORI_Avatar_" + quest[8:] if quest.startswith("ORI_COM_") else None):
             if q and q in quest_titles:
                 lines.append(f"    {q} = {lua_string(to_latin1(quest_titles[q]))},")
+    lines += ["}", "", "CR.QuestTitleHandles = {"]
+    for quest in sorted(used_quests):
+        for q in (quest, "ORI_Avatar_" + quest[8:] if quest.startswith("ORI_COM_") else None):
+            if q and q in title_handles:
+                lines.append(f'    {q} = "{title_handles[q]}",')
+    lines += ["}", "", "CR.JournalHandles = {"]
+    for quest, step in sorted(used_steps):
+        handle = step_handles.get((quest, step))
+        if handle:
+            lines.append(f'    ["{quest}/{step}"] = "{handle}",')
     lines += ["}", ""]
     with open(FLAGS_OUT, "w", encoding="utf-8", newline="\n") as fh:
         fh.write("\n".join(lines))

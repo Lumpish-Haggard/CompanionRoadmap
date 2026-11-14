@@ -40,7 +40,8 @@ Steps tick themselves off as you play. Everything is detected from the game's ow
 - **Points of no return**: the Shadowfell (Act 1 locks), the Mind Flayer Colony, leaving for Baldur's Gate, the Lower City and the final battle. Each comes with a short list of what you would lose.
 - **Notifications** when a tracked step is completed, or when an important one is missed.
 - **Manual check-offs** for anything the game does not record or another mod changes. They are saved inside each savegame.
-- **Spoiler control**: show everything, titles only for later acts, or hide later acts.
+- **Spoiler control**: the roadmap asks once how much it may reveal about later acts (everything, step titles only, or nothing). Until you choose, later acts stay hidden, including golden rules and romance notes.
+- **Companion portraits** from the game's own Photo Mode stickers (can be switched off).
 - **Mod Configuration Menu** support: a settings page, a rebindable hotkey and an "Open roadmap" button. MCM is optional.
 - **Multiplayer and origin aware**: each player sees their own approval and romance; playing as an origin marks that companion's recruitment and romance as not applicable.
 
@@ -74,6 +75,8 @@ To uninstall, disable or remove it. Saves made with it still load; the game only
 | See what you would miss | Open the *Before you move on* tab (the orange line under the header counts the open items). Click an entry to jump to it. |
 | Check off a step | Expand it and tick *I did this - mark it as done*. |
 | Refresh | The window updates by itself; *Options > Refresh now* forces it. |
+| Close | **Esc**, the toggle key, or the X. |
+| Report a problem | *Options > Create a report file*, then attach `report.json` to your bug report. |
 
 ### Step statuses
 
@@ -81,6 +84,7 @@ To uninstall, disable or remove it. Saves made with it still load; the game only
 |---|---|
 | `NEXT` | The next thing to do for this companion |
 | `TO DO` | Can be done now |
+| `OPTIONAL` | Can be done now, but skipping it costs you nothing important |
 | `NOT SEEN` | From an earlier act and not detected. It may still be possible, or the game does not record it, so check it off if you did it. |
 | `WAITING` | Waits for an earlier step |
 | `LATER` | Belongs to a later act |
@@ -91,7 +95,7 @@ To uninstall, disable or remove it. Saves made with it still load; the game only
 
 ### Options
 
-In the *Options* tab: hide finished steps · romance steps only · spoiler level · show how each step is tracked · notifications (romance and important steps, or every step) · window opacity · hotkey · clear all check-offs. With MCM installed, the same options appear on the MCM page and stay in sync.
+In the *Options* tab: hide finished steps · romance steps only · spoiler level · show how each step is tracked · companion portraits · notifications (romance and important steps, or every step) · window opacity · hotkey · Esc closes the window · clear all check-offs · create a report file. With MCM installed, the same options appear on the MCM page and stay in sync.
 
 ### Console commands
 
@@ -102,6 +106,7 @@ Open the Script Extender console:
 | `!roadmap` | client | toggle the window (`open`, `close`, `hotkey`, `debug` also work) |
 | `!roadmap` | server | print what the tracker sees: act, approval, relationships, step counts |
 | `!roadmap steps Minthara` | server | list one companion's steps and statuses |
+| `!roadmap report` | server | write `Script Extender/CompanionRoadmap/report.json`: everything the tracker sees, for bug reports |
 | `!roadmap resetoverrides` | server | clear all manual check-offs in this save |
 
 ## What is covered
@@ -149,7 +154,7 @@ Load a save; the roadmap fills in by itself. *Options > Refresh now* forces an u
 <details>
 <summary>A step I completed is not detected</summary>
 
-Some moments are only recorded inside a conversation. Tick *I did this - mark it as done*. If you think the game does record it, open an issue with the output of `!roadmap steps <Companion>` from the server console.
+Some moments are only recorded inside a conversation. Tick *I did this - mark it as done*. If you think the game does record it, open an issue and attach the report file (*Options > Create a report file*). It contains game identifiers only, nothing personal.
 </details>
 
 <details>
@@ -184,8 +189,10 @@ Mods/CompanionRoadmap/            the mod (what goes into the .pak)
     Tracker/     evaluation (server) and live sync
     Client/      settings, hotkey, network client
     UI/          overlay window, notifications, theme
+Public/CompanionRoadmap/          portrait definitions (they point at textures that ship with the game)
 tools/            game-data extraction, validation, search, test harness
-docs/             data format, architecture
+tests/fixtures/   report files from real saves, replayed as regression tests
+docs/             data format, architecture, roadmap
 pack.ps1          build and verify the .pak and the release zip
 ```
 
@@ -204,4 +211,4 @@ This project is not affiliated with or endorsed by Larian Studios.
 
 ## License
 
-[MIT](LICENSE). Baldur's Gate 3 names, story content and identifiers belong to Larian Studios. Apart from the flag identifiers and journal titles the mod needs at runtime (`Data/Flags.lua`), this repository contains no game data: `tools/extract_game_data.py` reads it from your own installation into a local cache that is never committed.
+[MIT](LICENSE). Baldur's Gate 3 names, story content and identifiers belong to Larian Studios. Apart from the flag identifiers, journal titles and localisation handles the mod needs at runtime (`Data/Flags.lua`), this repository contains no game data, and no game art: the companion portraits are the game's own Photo Mode stickers, referenced by file path. The reference data is read locally: `tools/extract_game_data.py` reads it from your own installation into a local cache that is never committed.

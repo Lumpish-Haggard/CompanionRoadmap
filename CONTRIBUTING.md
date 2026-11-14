@@ -10,7 +10,7 @@ Please read the [Code of Conduct](CODE_OF_CONDUCT.md) first.
 
 ## The one rule: verify, don't guess
 
-Every flag, journal step, item name, DC, approval threshold and location must come from the game files or a reliable source (bg3.wiki, or your own in-game test). Say where it came from in your pull request. The tooling makes the game-data part easy, as described below.
+Every flag, journal step, item name, DC, approval threshold and location must come from the game files or a reliable source (bg3.wiki, or your own in-game test). Say where it came from in your pull request. The tooling makes the game-data part easy, as described below. If you keep offline reference material of your own, read [docs/REFERENCE_DATA.md](docs/REFERENCE_DATA.md) first: it never goes into the repository or the mod.
 
 ## Setting up
 

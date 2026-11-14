@@ -10,8 +10,8 @@ dist/
 # Nexus Mods page drafts (kept out of the repository)
 nexus/
 
-# Local research databases (wiki mirrors). Large, and their text is licensed
-# by the wikis' contributors: never commit or ship them.
+# Private reference material and scratch data. It stays on each contributor's
+# machine: never committed, never shipped (see docs/REFERENCE_DATA.md).
 data/
 
 # Python

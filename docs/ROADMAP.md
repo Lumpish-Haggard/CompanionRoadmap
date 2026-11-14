@@ -17,6 +17,7 @@ This is a plan, not a promise. Order and scope will change with what players rep
 | Version | Theme | What it brings |
 |---|---|---|
 | **1.0.1** | Fixes | Known issues below, and a one-click report file that makes bug reports useful |
+| **1.0.2** | Nothing missed | A line-by-line completeness review of every companion, and the gaps found by the first real-save report |
 | **1.1** | Trust | The mod remembers choices as they happen; data cross-checked against the game automatically |
 | **1.2** | Camp and warnings | "Tonight at camp", warnings at the game's own "are you sure?" prompts, "do you have the item" |
 | **1.3** | Look | Overview page, mini tracker, icons, search and pins |
@@ -36,7 +37,18 @@ This is a plan, not a promise. Order and scope will change with what players rep
 - **First-run question** about spoilers: until it is answered, nothing from later acts is shown.
 - **Companion portraits** arrive early as an experiment: the game's own Photo Mode stickers, referenced from the game files rather than shipped.
 
-All of the above is built and covered by tests; see the [changelog](../CHANGELOG.md). What it still needs is play time in real saves.
+All of the above is released; see the [changelog](../CHANGELOG.md). It was checked in a real Act 1 save, and that save's report file is now the first regression fixture. What it still needs is play time in more saves, especially in Acts 2 and 3.
+
+## 1.0.2: nothing missed
+
+A guide like this is only worth trusting if it leaves nothing out. This update is about completeness, not new features.
+
+- **Completeness review.** Every companion is reviewed line by line against what is published about them (their wiki pages, quest and romance pages, approval lists, community guides) and each point is then confirmed in the game's own files: every way to lose a companion for good, every scene that can be missed, every requirement, threshold and deadline. A published source tells us what to look for; the game files decide whether it is true. Nothing is copied, and the guide stays in our own words.
+- **Every way to lose a companion** becomes a golden rule or a warning. Known to be missing today: Lae'zel (the creche, the patrol in the Mountain Pass, the night she asks for mercy), Karlach (the paladins, what you tell Minthara, Wyrm's Rock), Astarion (Yurgir's contract, the Gur, facing Cazador without him), Gale and Wyll (raiding the Grove, defending Karlach), Shadowheart (her parents, attacking her at the Nightsong), Jaheira and Minsc (the tribunal), and the rules that apply to everyone (the sacrifice in the Underdark, approval at -50, the kidnapping in Act 3).
+- **Coverage table.** A page in the repository that lists, per companion, what was reviewed and what it was confirmed against, so that gaps are visible instead of assumed away.
+- **Steps wait for recruitment.** A romance or camp step of a companion you have not recruited yet shows as WAITING, not TO DO, and is closed for good once that companion can no longer join.
+- **Steps that involve two companions** (the night Lae'zel and Shadowheart fight over the artefact) no longer stay open when one of them is already gone.
+- **Other mods.** Notes on mods that change a companion's story, starting with what was checked for Really Shadowheart.
 
 ## 1.1: trust
 

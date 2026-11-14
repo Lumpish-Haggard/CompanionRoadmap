@@ -15,9 +15,20 @@ Report files from real saves, replayed by `tools/test_harness.py` as regression 
 
    Status letters: `D` done, `O` checked, `N` next, `A` to do, `P` waiting, `U` later, `M` missed, `X` n/a, `I` not seen.
 
+   Any other key you add, such as `about` (what the save shows) or `known_gaps` (statuses that are still wrong and
+   not asserted yet), is a note for people and is ignored by the test.
+
 Every fixture is replayed on each test run: the fake game world is rebuilt from the report, the mod is started on it,
 and the run must be free of errors. The statuses recorded in the file come from the mod version that wrote it, so
 they are not compared automatically; only the `expect` entries are.
 
 A report holds game identifiers only (flag ids, journal step names, companion ids, approval values). It contains no
-character names and nothing about your PC or account.
+character names and nothing about your PC or account. The `avatar` value is the id the game gave your character in
+that save. Nothing depends on its value, so you may replace every occurrence of it with another id, as the
+fixtures here do.
+
+## Fixtures
+
+| File | What it shows |
+|---|---|
+| `act1-shadowheart-dating-two-companions-lost.json` | Act 1 at the Emerald Grove, written by 1.0.1. Shadowheart recruited and dating; Lae'zel dead; Astarion dead before he was recruited (so every Astarion step is missed); nobody else recruited. |

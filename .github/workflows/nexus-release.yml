@@ -148,44 +148,39 @@ jobs:
         id: page
         if: steps.plan.outputs.page != 'false'
         env:
-          REF: ${{ steps.plan.outputs.ref }}
           PAGE: ${{ steps.plan.outputs.page }}
         run: |
-          python - <<'PY'
-          import json, os, re, sys
-          d = os.environ["PAGE_DIR"]
-          desc = open(os.path.join(d, "description.bbcode"), encoding="utf-8").read().strip()
-          summary = re.sub(r"\s+", " ", open(os.path.join(d, "summary.txt"), encoding="utf-8").read()).strip()
-          problems = []
-          if not desc:
-              problems.append("description.bbcode is empty")
-          if not 1 <= len(summary) <= 350:
-              problems.append(f"summary.txt must be 1 to 350 characters, it is {len(summary)}")
-          for p in problems:
-              print(f"::error::{p}")
-          if problems:
-              sys.exit(1)
-          json.dump({"summary": summary, "description": desc}, open("page.json", "w", encoding="utf-8"), ensure_ascii=False)
-          print(f"summary: {len(summary)} characters, description: {len(desc)} characters")
-          PY
-          send=false
+          python tools/nexus_page.py check
+          prev=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "HEAD^" 2>/dev/null || true)
+          # state of one file since the previous release: new | changed | same (or norelease)
+          state() {
+            if [ -z "$prev" ]; then echo norelease
+            elif ! git cat-file -e "$prev:$1" 2>/dev/null; then echo new
+            elif git diff --quiet "$prev" HEAD -- "$1"; then echo same
+            else echo changed; fi
+          }
+          d=$(state "$PAGE_DIR/description.bbcode")
+          s=$(state "$PAGE_DIR/summary.txt")
           if [ "$PAGE" = "force" ]; then
-            send=true; why="requested"
+            desc=true; summ=true; why="requested by hand"
           else
-            prev=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "HEAD^" 2>/dev/null || true)
-            if [ -z "$prev" ]; then
-              send=true; why="no earlier release"
-            elif [ -z "$(git ls-tree -r --name-only "$prev" -- "$PAGE_DIR")" ]; then
-              send=true; why="the page text is new since $prev"
-            elif ! git diff --quiet "$prev" HEAD -- "$PAGE_DIR"; then
-              send=true; why="the page text changed since $prev"
-            else
-              why="the page text is unchanged since $prev"
-            fi
+            # The description is backed up before it is replaced, so it is sent whenever it is new
+            # or changed. The live summary cannot be read back, so it is only sent when it changed
+            # after it was first tracked (or by hand), never overwritten blind.
+            desc=false; summ=false
+            case "$d" in new|changed|norelease) desc=true ;; esac
+            [ "$s" = "changed" ] && summ=true
+            why="since ${prev:-the first release}: description $d, summary $s"
           fi
-          echo "Update the page: $send ($why)"
-          echo "send=$send" >> "$GITHUB_OUTPUT"
-          echo "why=$why" >> "$GITHUB_OUTPUT"
+          send=false
+          if [ "$desc" = "true" ] || [ "$summ" = "true" ]; then send=true; fi
+          echo "Send description: $desc, summary: $summ ($why)"
+          {
+            echo "send=$send"
+            echo "desc=$desc"
+            echo "summ=$summ"
+            echo "why=$why"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Check that the API key is set
         if: steps.plan.outputs.dry != 'true'
@@ -232,23 +227,17 @@ jobs:
             -H "apikey: $KEY" -H "Accept: application/json" -H "User-Agent: CompanionRoadmap-release" \
             "$NEXUS_API/mods/$NEXUS_MOD_ID")
           if [ "$code" != "200" ]; then
-            echo "::error::Reading the mod page failed (HTTP $code); nothing was changed on the page."
+            echo "::error::Reading the mod page failed (HTTP $code); the page was not changed."
             head -c 1000 live.json; echo
             exit 1
           fi
-          mkdir -p before
-          python - <<'PY'
-          import json
-          data = json.load(open("live.json", encoding="utf-8"))["data"]
-          live = (data.get("description") or "").replace("\r\n", "\n").strip()
-          open("before/description.bbcode", "w", encoding="utf-8").write(live + "\n")
-          new = json.load(open("page.json", encoding="utf-8"))["description"]
-          print("The live description is", "identical to" if live == new else "different from", "the new one.")
-          PY
+          same=false
+          python tools/nexus_page.py decode live.json before && same=true || [ $? -eq 3 ]
           diff -u before/description.bbcode "$PAGE_DIR/description.bbcode" || true
+          echo "same=$same" >> "$GITHUB_OUTPUT"
 
       - name: Keep the old page text as an artifact
-        if: steps.page.outputs.send == 'true' && hashFiles('before/description.bbcode') != ''
+        if: steps.page.outputs.send == 'true' && hashFiles('before/description.raw.bbcode') != ''
         uses: actions/upload-artifact@v7
         with:
           name: nexus-page-before
@@ -260,7 +249,19 @@ jobs:
         if: steps.page.outputs.send == 'true' && steps.plan.outputs.dry != 'true'
         env:
           KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+          SEND_DESC: ${{ steps.page.outputs.desc }}
+          SEND_SUMM: ${{ steps.page.outputs.summ }}
+          DESC_SAME: ${{ steps.before.outputs.same }}
         run: |
+          args=()
+          if [ "$SEND_DESC" = "true" ] && [ "$DESC_SAME" != "true" ]; then args+=(--description); fi
+          if [ "$SEND_SUMM" = "true" ]; then args+=(--summary); fi
+          if [ ${#args[@]} -eq 0 ]; then
+            echo "The live page already matches; nothing to send."
+            echo "result=already up to date" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python tools/nexus_page.py body page.json "${args[@]}"
           code=$(curl -sS -o response.txt -w '%{http_code}' -X PATCH \
             -H "apikey: $KEY" -H "Content-Type: application/json" -H "Accept: application/json" \
             -H "User-Agent: CompanionRoadmap-release" \
@@ -271,7 +272,19 @@ jobs:
             head -c 2000 response.txt; echo
             exit 1
           fi
-          echo "done=true" >> "$GITHUB_OUTPUT"
+          echo "result=updated (${args[*]})" >> "$GITHUB_OUTPUT"
+
+      - name: Read the page back
+        if: steps.pageupdate.outputs.result != '' && steps.pageupdate.outputs.result != 'already up to date'
+        env:
+          KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+        run: |
+          curl -sS -o after.json -H "apikey: $KEY" -H "Accept: application/json" \
+            -H "User-Agent: CompanionRoadmap-release" "$NEXUS_API/mods/$NEXUS_MOD_ID"
+          if ! python tools/nexus_page.py decode after.json after; then
+            echo "::warning::Nexus stored the description differently from what was sent. Check the page; the differences are below."
+            diff -u after/description.bbcode "$PAGE_DIR/description.bbcode" || true
+          fi
 
       - name: Summary
         if: always()
@@ -282,7 +295,7 @@ jobs:
           VERSION_ID: ${{ steps.nexus.outputs.version_id }}
           PAGE_SEND: ${{ steps.page.outputs.send }}
           PAGE_WHY: ${{ steps.page.outputs.why }}
-          PAGE_DONE: ${{ steps.pageupdate.outputs.done }}
+          PAGE_RESULT: ${{ steps.pageupdate.outputs.result }}
         run: |
           {
             echo "### Nexus Mods"
@@ -290,7 +303,7 @@ jobs:
             [ "$DRY" = "true" ] && echo "- Dry run: nothing was sent."
             if [ -n "$VERSION_ID" ]; then echo "- File uploaded: ${FILE} (Nexus file version id $VERSION_ID)"
             elif [ -n "$FILE" ]; then echo "- File checked, not uploaded: ${FILE}"; fi
-            if [ "$PAGE_DONE" = "true" ]; then echo "- Page updated ($PAGE_WHY). The old text is in the nexus-page-before artifact."
-            elif [ "$PAGE_SEND" = "true" ]; then echo "- Page would be updated ($PAGE_WHY), but was not."
-            elif [ -n "$PAGE_WHY" ]; then echo "- Page left alone ($PAGE_WHY)."; fi
+            if [ -n "$PAGE_RESULT" ]; then echo "- Page: $PAGE_RESULT ($PAGE_WHY). The text that was live before is in the nexus-page-before artifact."
+            elif [ "$PAGE_SEND" = "true" ]; then echo "- Page: would be updated ($PAGE_WHY), but was not."
+            elif [ -n "$PAGE_WHY" ]; then echo "- Page: left alone ($PAGE_WHY)."; fi
           } >> "$GITHUB_STEP_SUMMARY"

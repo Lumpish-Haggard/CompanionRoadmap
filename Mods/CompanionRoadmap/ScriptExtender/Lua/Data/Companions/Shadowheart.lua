@@ -22,6 +22,11 @@ CR.Guides.Register {
         Q(SH, "CompanionLowRelation"), Q(SH, "CompanionHostile"), Q(SH, "CompanionMurdered"),
         Q(SHAR, "ShadowheartLeftParty_SUB_Justiciar"), Q(SH, "SharTemple_NoDecisionAllowed"),
         Q(SHAR, "Nightsong_Surrendered"),
+        -- added in 1.0.2 (journal entries that end with her dead or gone for good)
+        Q(SHAR, "ShadowHeartDead_SUB_Justiciar"), Q(SH, "CampFight_ShadowheartDied"),
+        Q(SH, "SurrenderedShadowheart"), Q("LOW_InvestigateSharrans_SUB_ViconiaDeal", "SoldShadowheart"),
+        Q(SH, "EnemyOfShar_ParentsSceneBroken"), Q(SH, "SharPath_ParentsSceneBroken"),
+        Q(FRIEND, "ShadowheartLeftParty_SUB_OldFriend"), Q(FRIEND, "ShadowheartDead_SUB_OldFriend"),
     },
     romance = {
         dating = P("ORI_State_DatingShadowheart"),
@@ -34,8 +39,10 @@ CR.Guides.Register {
         { act = 1, "Never side with Lae'zel when the two of them fight at camp - Shadowheart leaves for good." },
         { act = 2, "Bring her (and the Spear of Night) into the Shadowfell. Entering without her, or without the spear, makes her leave." },
         { act = 2, "Never hand Nightsong to Balthazar." },
+        { act = 2, "Let her make the Nightsong decision herself - if you decide for her, she leaves for good." },
+        { act = 2, "If she moves to kill Nightsong, use words. Attacking Shadowheart there kills her, and she cannot be brought back." },
         { act = 3, "Never surrender Shadowheart to Viconia." },
-        { act = 2, "Let her make the Nightsong decision herself - deciding for her ends the relationship." },
+        { act = 3, "In the Chamber of Loss, never harm her parents and never break up the scene - she turns on you or leaves for good." },
     },
     romanceNotes = {
         "Act 1: accept her bottle of wine at the camp celebration (20+ approval, at most one other active romance).",
@@ -43,6 +50,7 @@ CR.Guides.Register {
         "Act 2: after the Shadowfell she asks to make it serious -> Partnered.",
         "Act 3 (Selune path): the night swim needs 40+ approval and knowing she cannot swim.",
         { act = 3, "Shar path: she stays with you, but always ends the relationship after the final battle." },
+        { act = 3, "Shar path: her night as a Dark Justiciar has to happen before you finish the House of Grief. Afterwards, if she killed her parents, 40+ approval brings a scene at a shrine of Selune." },
     },
 
     -- Shadowheart's hidden 'Nightsong points' (4 of 6 make sparing Nightsong much easier).
@@ -165,7 +173,8 @@ CR.Guides.Register {
             rewards = "Both companions stay.",
             done = { Q(SH, "CampFight_Peace") },
             fail = { Q(SH, "CampFight_ShadowheartDied") },
-            skip = { Q(SH, "CampFight_LaezelDied") },
+            -- the night cannot happen any more once Lae'zel is gone
+            skip = { Q(SH, "CampFight_LaezelDied"), C.Lost("Laezel") },
         },
         {
             id = "SH_A1_PARTY", act = 1, kind = "romance", romance = true, romanceStart = true, critical = true, approval = 20,
@@ -277,8 +286,10 @@ CR.Guides.Register {
             id = "SH_A3_SHARNIGHT", act = 3, kind = "romance", romance = true, optional = true,
             title = "Romance (Shar path): the Dark Justiciar's night",
             where = "Act 3 camp (long rest)",
-            todo = { "Stay partnered with the Dark Justiciar Shadowheart and long rest in Act 3." },
+            todo = { "Stay partnered with the Dark Justiciar Shadowheart and long rest in Act 3, before you finish the House of Grief." },
+            avoid = { "Finishing the House of Grief first - the game cancels this scene once her quest there is concluded." },
             done = { G("NIGHT_Shadowheart_SharRomance") },
+            fail = { G("ORI_Shadowheart_State_ConcludedGrotto") },
             skip = { G("ORI_Shadowheart_State_EnemyOfSharPath") },
             closes = "endgame",
         },
@@ -334,8 +345,24 @@ CR.Guides.Register {
             id = "SH_A3_FUTURE", act = 3, kind = "romance", romance = true, optional = true,
             title = "Romance: the statue and the future she wants",
             where = "Camp, after the House of Grief",
-            todo = { "Long rest after her personal quest; join her at the Selune statue and talk about the future." },
+            todo = {
+                "Long rest after her personal quest; join her at the Selune statue and talk about the future.",
+                "The talk about the future also needs the night swim to have happened.",
+            },
             done = { G("NIGHT_Shadowheart_SharedFuture"), C.F("ORI_Shadowheart_State_Act3RomanceEnded", "any") },
+            after = { "SH_A3_PARENTS", "SH_A3_SWIM" },
+            closes = "endgame",
+        },
+        {
+            id = "SH_A3_NIGHTFALL", act = 3, kind = "romance", romance = true, optional = true, approval = 40,
+            title = "Romance (Shar path): the shrine at nightfall",
+            where = "Act 3 camp (long rest), after the House of Grief",
+            todo = {
+                "Requires: the Shar path, her parents killed in the Chamber of Loss, being her partner and 40+ approval.",
+                "Long rest after the House of Grief; she asks you to come with her to a shrine of Selune.",
+            },
+            done = { G("NIGHT_Shadowheart_NightfallRitual"), C.F("ORI_Shadowheart_Event_NightfallRomanceScene", "any") },
+            skip = { G("ORI_Shadowheart_State_EnemyOfSharPath"), Q(SH, "SharPath_SavedParents") },
             after = { "SH_A3_PARENTS" },
             closes = "endgame",
         },

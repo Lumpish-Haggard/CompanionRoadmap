@@ -16,7 +16,11 @@ CR.Guides.Register {
     romanceable = true,
 
     recruited = G("GLO_Origin_PartOfTheTeam_Gale"),
-    left = { Q(GA, "CompanionLowRelation"), Q(GA, "CompanionHostile") },
+    left = {
+        Q(GA, "CompanionLowRelation"), Q(GA, "CompanionHostile"),
+        -- added in 1.0.2: dead beyond resurrection, and leaving because Elminster never delivered his message
+        Q(GA, "CompanionMurdered"), Q(GA, "ORI_Gale_BombNotDisarmed"), Q(GA, "ORI_Gale_AbandonedBombNotDisarmed"),
+    },
     romance = {
         dating = P("ORI_State_DatingGale"),
         partnered = P("ORI_State_PartneredWithGale"),
@@ -27,8 +31,10 @@ CR.Guides.Register {
     rules = {
         { act = 1, "Pull him out of the rune circle on the first or second try - failing both locks him out." },
         { act = 1, "Give him at least ONE magic item when he first asks - refusing makes him leave. (The 2nd and 3rd are optional.)" },
+        { act = 1, "Never tell him to leave: not when he catches you prying into his mind, and not when he tells you about the orb." },
         { act = 1, "If he dies, revive him within 3 long rests or his orb detonates (game over)." },
-        { act = 2, "Talk to Elminster - attacking him makes Gale leave at the end of Act 2." },
+        { act = 1, "Raiding the Grove: he confronts you at the goblin party and leaves unless you talk him round." },
+        { act = 2, "Talk to Elminster - ignoring or attacking him makes Gale leave once Ketheric is dead." },
     },
     romanceNotes = {
         "Act 1: at 36+ approval he shows you Mystra's portrait and teaches you to touch the Weave; imagine kissing him or walking hand in hand.",
@@ -91,7 +97,7 @@ CR.Guides.Register {
             closes = "act1",
         },
         {
-            id = "GALE_A1_TRUTH", act = 1, kind = "story", optional = true,
+            id = "GALE_A1_TRUTH", act = 1, kind = "story", optional = true, needsJoin = true,
             title = "Learn the truth about the orb",
             where = "Camp",
             todo = { "Keep talking to him after feeding him items; he tells you about Mystra and the Netherese orb." },
@@ -105,8 +111,9 @@ CR.Guides.Register {
             title = "Elminster's message",
             where = "Rosymorn Monastery Trail, or right after the Grymforge lift",
             todo = { "Talk to the old man on the road - it is Elminster, bringing Mystra's request." },
-            avoid = { "Attacking Elminster - Gale leaves at the end of Act 2." },
+            avoid = { "Ignoring or attacking Elminster - Gale leaves camp once Ketheric is dead, with only a letter left behind." },
             done = { Q(GA, "ElminsterBrief"), Q(GA, "MeetElminster"), F("ORI_Gale_Event_BombDisarmed", "any") },
+            fail = { Q(GA, "ORI_Gale_BombNotDisarmed"), Q(GA, "ORI_Gale_AbandonedBombNotDisarmed") },
             closes = "act3",
         },
         {
@@ -114,6 +121,7 @@ CR.Guides.Register {
             title = "Romance: the starry sky",
             where = "Camp, after unlocking the Moonrise Towers waypoint",
             todo = {
+                "Requires Elminster's message (see the step above): without it this night never comes.",
                 "While dating him (and not partnered with anyone else), interact with his projection at camp before a long rest.",
                 "Comfort him, return his confession, then choose the Weave or 'a real man' love scene.",
                 "Next morning, do not call it a one-time thing.",
@@ -122,7 +130,7 @@ CR.Guides.Register {
             rewards = "Relationship: Partnered.",
             done = { P("ORI_State_PartneredWithGale"), C.Rel("partnered") },
             fail = { P("ORI_State_ChosePartnerOverGale"), P("ORI_State_WasPartneredWithGale") },
-            after = { "GALE_A1_WEAVE" },
+            after = { "GALE_A1_WEAVE", "GALE_A2_ELMINSTER" },
             closes = "colony",
         },
 
@@ -133,6 +141,18 @@ CR.Guides.Register {
             where = "Sorcerous Sundries, Lower City - the secure vaults",
             todo = { "Ask Tolna about the book, get into the vaults and recover The Annals of Karsus. Let Gale read it." },
             done = { Q(GA, "FoundBook"), Q(GA, "ReadNotes") },
+            closes = "endgame",
+        },
+        {
+            id = "GALE_A3_ROMANCE", act = 3, kind = "romance", romance = true,
+            title = "Romance: the night after the Annals of Karsus",
+            where = "Act 3 camp (long rest)",
+            todo = {
+                "Requires: being his partner, and Gale having read the Annals of Karsus.",
+                "Long rest for his Act 3 romance scene. How you talk to him about the Crown from here on shapes his ending.",
+            },
+            done = { G("NIGHT_Gale_BeMyGod") },
+            after = { "GALE_A2_STARS", "GALE_A3_KARSUS" },
             closes = "endgame",
         },
         {

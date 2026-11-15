@@ -356,6 +356,7 @@ local function probeEverything(ctx)
     end
     for _, comp in ipairs(Guides.Companions) do
         probe(comp.recruited, comp)
+        probe(comp.joined, comp)
         for _, c in ipairs(comp.left) do probe(c, comp) end
         if comp.romance then
             for _, key in ipairs({ "dating", "partnered", "ex" }) do probe(comp.romance[key], comp) end
@@ -416,6 +417,9 @@ function Srv.BuildReport(avatar)
             perma = ctx:IsPermaDefeated(comp),
             team = E.DbHasRows("DB_PartOfTheTeam", comp.uuid),
             ko = ctx:KnockedOut(comp),
+            -- the two tags the game puts on a companion it removed for good
+            noRes = ctx:Tagged(comp, E.LeftTags.noRes),
+            downed = ctx:Tagged(comp, E.LeftTags.downed),
             approval = type(approval) == "number" and math.floor(approval) or nil,
             dating = avatar ~= nil and E.DbHasRows("DB_ORI_Dating", avatar, comp.uuid),
             partnered = avatar ~= nil and E.DbHasRows("DB_ORI_Partnered", avatar, comp.uuid),

@@ -29,12 +29,14 @@ Press **F7** and pick a companion:
 - **Where you stand**: recruited, dating, partnered or lost; live approval and its tier; special trackers such as Shadowheart's hidden *Nightsong points*, Karlach's engine upgrades and the magic items fed to Gale.
 - **What to do next**: every step of their personal quest and romance, act by act, with location, what to do, what to avoid, rewards, and the approval the step needs next to your current approval. The next step is highlighted.
 - **What you are about to lose**: the *Before you move on* tab lists each upcoming point of no return and the important steps still open before it. Click an entry to jump to it.
+- **How not to lose them**: every companion's page opens with its *Golden rules*, the choices that make that companion die or leave for good, and a short *For every companion* list of the ones that apply to all of them.
 
 Steps tick themselves off as you play. Everything is detected from the game's own journal, story flags and approval values. The mod only reads the game, so it is safe to add to or remove from an ongoing playthrough.
 
 ## Features
 
 - All **10 recruitable companions**, around **100 steps**: Shadowheart, Minthara, Karlach, Lae'zel, Astarion, Gale, Wyll, Halsin, Jaheira, Minsc.
+- **Golden rules** for each of them, 71 in all: the choices that make a companion die, leave for good or end a romance. [What was reviewed, and against what](docs/COVERAGE.md).
 - **Live statuses**: Next, To do, Not seen, Waiting, Later, Done, Checked, Missed, N/A, updated within half a second of the game changing.
 - **Looks like it belongs in the game**: a quiet dark panel in BG3's own Quadraat typeface, gold headings, and colour only where it means something.
 - **Points of no return**: the Shadowfell (Act 1 locks), the Mind Flayer Colony, leaving for Baldur's Gate, the Lower City and the final battle. Each comes with a short list of what you would lose.
@@ -128,6 +130,8 @@ Open the Script Extender console:
 
 - **Detection comes from the game itself.** The tracker reads journal steps, story flags, Osiris databases and approval through the Script Extender. Every flag and journal step it uses was extracted from the game files and is validated by [`tools/build_data.py`](tools/build_data.py). Nothing is a guessed ID.
 - **Guide text is cross-checked** against the game's own journal text and story scripts, and against [bg3.wiki](https://bg3.wiki).
+- **What was reviewed is written down.** [docs/COVERAGE.md](docs/COVERAGE.md) lists, per companion, every way to lose them that the guide warns about, what each one was confirmed against, and what is still open.
+- **A companion who is gone is shown as gone**, even when the journal says nothing: the tracker also reads the marker the game itself puts on a companion it has removed for good.
 - **What it cannot see**: moments the game only keeps inside a conversation, and romance flags that other mods change. Use *I did this - mark it as done* for those, and [tell us](../../issues/new/choose) if a step should be detectable.
 - Installing mid-playthrough works: the tracker reads what the game has already recorded.
 
@@ -136,6 +140,8 @@ Open the Script Extender console:
 - **Romance mods** (PolyamoryFixes, NoRomanceLimit, ...) are fine. If a mod changes how romance flags are set, check the step off by hand.
 - **Multiplayer**: approval and romance are per player; journal progress and check-offs are shared.
 - **Other Script Extender overlays** (MCM and others) work alongside it; the roadmap uses its own window.
+- **Mods that rewrite a companion's story**: the roadmap describes the unmodded game. Detection keeps working as long as the mod leaves the game's journal entries and relationship flags in place, but numbers and requirements in the guide text may no longer match.
+  - *Really Shadowheart*: checked against its published source, not tested together in game. It keeps the journal entries and relationship flags the roadmap reads, so statuses should be detected as usual. It changes some of the numbers the guide quotes (for example the approval needed for the wolf memory, and the conditions of her first romance scene), so trust that mod's own notes where they differ. If you play with it, a [report file](../../issues/new/choose) would help a lot.
 
 ## Troubleshooting
 
@@ -192,7 +198,7 @@ Mods/CompanionRoadmap/            the mod (what goes into the .pak)
 Public/CompanionRoadmap/          portrait definitions (they point at textures that ship with the game)
 tools/            game-data extraction, validation, search, test harness
 tests/fixtures/   report files from real saves, replayed as regression tests
-docs/             data format, architecture, roadmap
+docs/             data format, architecture, roadmap, coverage
 pack.ps1          build and verify the .pak and the release zip
 ```
 

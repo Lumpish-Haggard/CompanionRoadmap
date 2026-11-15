@@ -6,6 +6,30 @@ All notable changes to this project are documented here. The format follows [Kee
 
 Nothing yet.
 
+## [1.0.2] - 2026-11-15
+
+"Nothing missed": a completeness review of every companion. What was reviewed, and what each point was confirmed against, is in [docs/COVERAGE.md](docs/COVERAGE.md).
+
+### Added
+- **Every way to lose a companion that could be confirmed is now a golden rule.** 24 new rules, each confirmed in the game's story scripts or journal. Among them: Lae'zel (the night she wants to kill everyone, the githyanki patrol, the zaith'isk, the Inquisitor, reaching Moonrise without the creche, the very end), Karlach (the paladins, Minthara and the Grove, Wyrm's Rock prison), Astarion (staking him, the Gur in Act 3, Cazador finishing the ritual), Gale (sending him away, raiding the Grove), Wyll (defending Karlach from him, anyone in your party killing the Duke), Shadowheart (attacking her at the Nightsong, her parents), Minthara (sending her away after Ketheric), Jaheira and Minsc (her children, her allies, the Murder Tribunal, leaving her behind).
+- **"For every companion"**: a short list on every page with the ways to lose anyone: approval at -50, telling them to leave, BOOOAL, the necromancer's laboratory in the Colony, the Dark Urge, Orin's abduction, Haarlep. It follows the spoiler setting like the golden rules do.
+- **A companion the game has removed is shown as lost even when the journal says nothing.** Most ways of losing a companion leave no journal entry (Halsin staying behind in Act 2, for example). The tracker now also reads the marker the game itself puts on a companion it has removed for good.
+- New steps: Shadowheart's Shar-path scene at the shrine (Act 3) and Gale's Act 3 romance night.
+- [docs/COVERAGE.md](docs/COVERAGE.md): per companion, what the guide warns about, where it was confirmed, and what is still open.
+- A note on mods that rewrite a companion's story, starting with what was checked for *Really Shadowheart* (see the README).
+
+### Fixed
+- **Steps wait for recruitment.** A romance or approval step of a companion who has not joined yet was shown as TO DO. It is now WAITING, and it is closed for good once that companion can no longer join. (Found in the first real-save report: Karlach, Wyll and Gale.)
+- **Steps that involve two companions**: the night Lae'zel and Shadowheart fight over the artefact stayed open after one of them was gone. It is now N/A.
+- More outcomes are recognised as "gone for good": Shadowheart (killed at the Nightsong, surrendered to Viconia, her parents' scene broken), Lae'zel (turning on you at the very end), Astarion (handed to the Gur in Act 3), Gale (dead beyond resurrection, or leaving because Elminster never delivered his message), Jaheira (dead), Karlach.
+- Lae'zel going ahead to the creche on her own was shown as a missed creche. She is waiting for you there; the step stays open.
+- Wyll's proposal was shown as DONE when the same camp night had played as his goodbye (the Duke dead). It now needs you to still be his partner.
+- From the game's camp-scene scheduler: Karlach's date at the Singing Lute needs 30 approval; her night visit in Act 1 needs approval above 30; Gale's starry night needs Elminster's message first; Shadowheart's Dark Justiciar night is cancelled once the House of Grief is finished, and her talk about the future needs the night swim; Halsin's night is on offer for two long rests only, and he waits for Karlach's second upgrade if she is your partner.
+
+### Changed
+- Report files also record the two markers mentioned above, so a report replays to the same result.
+- For guide writers: `C.Lost("<Companion>")` (another companion is gone), `needsJoin` on a step, `joined` on a companion. See [docs/DATA_FORMAT.md](docs/DATA_FORMAT.md).
+
 ## [1.0.1] - 2026-11-14
 
 ### Fixed
@@ -61,6 +85,7 @@ First public release. A full rebuild of an earlier prototype that could not run 
   - Wyll's romance only starts at the Tiefling party and needs Duke Ravengard alive; rescuing Mizora is what keeps Wyll himself alive.
   - Gale leaves only if you refuse the first magic item.
 
-[Unreleased]: ../../compare/v1.0.1...HEAD
+[Unreleased]: ../../compare/v1.0.2...HEAD
+[1.0.2]: ../../releases/tag/v1.0.2
 [1.0.1]: ../../releases/tag/v1.0.1
-[1.0.0]: ../../releases/tag/Latest
+[1.0.0]: ../../releases/tag/v1.0.0

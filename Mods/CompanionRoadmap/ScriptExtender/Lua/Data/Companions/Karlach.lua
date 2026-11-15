@@ -27,6 +27,8 @@ CR.Guides.Register {
     left = {
         Q(KAR, "CompanionLowRelation"), Q(KAR, "CompanionHostile"), Q(KAR, "CompanionMurdered"),
         Q(KAR, "KarlachPermanentlyDies"), Q(KAR, "KarlachRescued_NotRecruited"), Q(KAR, "KarlachNotRescued"),
+        -- added in 1.0.2: the same outcomes as recorded in her heart quest
+        Q(HEART, "ForgingOfTheHeart_KarlachPermanentlyLeaves"), Q(HEART, "ForgingOfTheHeart_KarlachPermanentlyDies"),
     },
     romance = {
         dating = P("ORI_State_DatingKarlach"),
@@ -37,12 +39,16 @@ CR.Guides.Register {
 
     rules = {
         { act = 1, "Meet her BEFORE raiding the Grove, starting a fight inside the Grove, or letting the Rite of Thorns finish - otherwise she refuses to join." },
+        { act = 1, "Never side with the 'paladins' (Anders) against her and never attack her - she dies for good." },
+        { act = 1, "If Wyll meets her first, talk him down - do not let him kill her." },
+        { act = 1, "Kill the paladins hunting her before you leave for the Mountain Pass or the Shadow-Cursed Lands. She reminds you once; she will not travel on with them still after her." },
+        { act = 1, "Do not side with Minthara and raid the Grove - Karlach walks out for good at the goblins' celebration." },
         { act = 1, "Two pieces of Infernal Iron + Dammon = a fixed heart (she can touch people again). Dammon must survive." },
         { act = 2, "Her Act 2 romance night must happen before you leave Act 2, or she ends the relationship in Act 3." },
-        { act = 1, "If Wyll meets her first, talk him down - do not let him kill her." },
+        { act = 3, "If she storms Gortash's ceremony and is locked up in Wyrm's Rock, free her before you leave - left in that prison she is lost." },
     },
     romanceNotes = {
-        "Act 1: at 30+ approval (and not dating two others) she visits you at night to confess.",
+        "Act 1: with approval above 30 (and not dating two others or partnered) she visits you at night to confess.",
         { act = 1, "Otherwise accept her at the camp celebration (20+ approval, at most one other active romance)." },
         "Act 2: once Dammon finishes the second upgrade, long rest for her big romance night -> Partnered.",
         { act = 2, "Partnering with someone else before that night ends her romance." },
@@ -109,7 +115,7 @@ CR.Guides.Register {
             title = "Romance: tell her how you feel",
             where = "Camp (night visit) or the camp celebration",
             todo = {
-                "At 30+ approval she visits you at night and confesses - return her feelings.",
+                "With approval above 30 she visits you at night and confesses - return her feelings.",
                 "Or at the celebration (20+ approval, at most one other active romance) tell her you like her and agree to meet later.",
                 "She cannot be touched yet. Be sweet about it - the kiss burns.",
             },
@@ -189,10 +195,11 @@ CR.Guides.Register {
             closes = "endgame",
         },
         {
-            id = "KAR_A3_DATE", act = 3, kind = "romance", romance = true,
+            id = "KAR_A3_DATE", act = 3, kind = "romance", romance = true, approval = 30,
             title = "Romance: first date at The Singing Lute",
             where = "Lower City - The Singing Lute",
             todo = {
+                "Requires: being her partner and 30+ approval.",
                 "After entering the Lower City she asks you on a 'first date' - accept.",
                 "Over dinner she says she loves you; follow her upstairs (intimacy is optional).",
             },

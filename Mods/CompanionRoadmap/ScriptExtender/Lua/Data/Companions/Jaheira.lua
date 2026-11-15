@@ -18,12 +18,18 @@ CR.Guides.Register {
     romanceable = false,
 
     recruited = G("GLO_Origin_PartOfTheTeam_Jaheira"),
-    left = { F("ORI_Jaheira_State_LeftPermanently", "any"), Q(HH, "JaheiraLeavesParty") },
+    left = {
+        F("ORI_Jaheira_State_LeftPermanently", "any"), Q(HH, "JaheiraLeavesParty"),
+        Q(HH, "CompanionMurdered"),     -- added in 1.0.2: "Jaheira is dead."
+    },
 
     rules = {
         { act = 2, "She only becomes a real companion after Ketheric retreats to the Colony - keep her alive until then." },
+        { act = 2, "Never attack Isobel - Jaheira turns on you." },
+        { act = 2, "If you tell her not to come along after Ketheric falls, speak to her again before you enter the Lower City. Otherwise she goes after Minsc alone and dies." },
+        { act = 3, "Never attack her children in her house, or her Harper allies - she turns on you, and Minsc with her." },
         { act = 3, "Never kill Minsc, refuse to recruit him once he is saved, or sacrifice him to Sarevok - she leaves." },
-        { act = 2, "Never harm her children or Isobel." },
+        { act = 3, "At Sarevok's Murder Tribunal, never offer Jaheira or Minsc as the sacrifice - both of them turn on you." },
     },
     romanceNotes = { "Jaheira cannot be romanced." },
 

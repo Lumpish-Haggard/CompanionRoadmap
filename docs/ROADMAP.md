@@ -17,7 +17,7 @@ This is a plan, not a promise. Order and scope will change with what players rep
 | Version | Theme | What it brings |
 |---|---|---|
 | **1.0.1** | Fixes | Known issues below, and a one-click report file that makes bug reports useful |
-| **1.0.2** | Nothing missed | A line-by-line completeness review of every companion, and the gaps found by the first real-save report |
+| **1.0.2** | Nothing missed | A completeness review of every way to lose a companion, and the gaps found by the first real-save report |
 | **1.1** | Trust | The mod remembers choices as they happen; data cross-checked against the game automatically |
 | **1.2** | Camp and warnings | "Tonight at camp", warnings at the game's own "are you sure?" prompts, "do you have the item" |
 | **1.3** | Look | Overview page, mini tracker, icons, search and pins |
@@ -49,6 +49,13 @@ A guide like this is only worth trusting if it leaves nothing out. This update i
 - **Steps wait for recruitment.** A romance or camp step of a companion you have not recruited yet shows as WAITING, not TO DO, and is closed for good once that companion can no longer join.
 - **Steps that involve two companions** (the night Lae'zel and Shadowheart fight over the artefact) no longer stay open when one of them is already gone.
 - **Other mods.** Notes on mods that change a companion's story, starting with what was checked for Really Shadowheart.
+
+Where this stands in 1.0.2 (see the [changelog](../CHANGELOG.md) and the [coverage table](COVERAGE.md)):
+
+- **Done:** the review of every way to lose a companion, the coverage table, steps waiting for recruitment, two-companion steps, and the note on other mods.
+- **Started, not finished:** scenes, requirements and deadlines. The game's camp-scene scheduler turned out to be the best reference there is for them, and a first pass over it already corrected several (see the changelog). Comparing all of it is the "automatic cross-checks" item of 1.1, and listing every camp scene is part of 1.4.
+- **Not planned, but needed:** most ways of losing a companion leave no journal entry, so the tracker now also reads the marker the game itself puts on a companion it has removed.
+- **Still open:** the coverage table lists the points the references mention that could not be confirmed in the game files, and the optional scenes the guide does not list yet.
 
 ## 1.1: trust
 

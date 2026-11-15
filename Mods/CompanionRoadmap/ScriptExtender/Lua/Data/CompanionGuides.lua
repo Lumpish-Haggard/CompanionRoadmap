@@ -23,6 +23,8 @@ local Guides = CR.Guides
 --   Dead()           this companion is dead
 --   Prog(marker)     a progress marker was reached (see Guides.Markers)
 --   KO()             Minthara-style "knocked out instead of killed" detection
+--   Lost(id)         ANOTHER companion (by guide id) is gone for good; for steps
+--                    that involve two companions
 --   Any{...} All{...} Not(c)
 -- -----------------------------------------------------------------------------
 CR.Cond = CR.Cond or {}
@@ -37,6 +39,7 @@ function C.Recruited() return { k = "rec" } end
 function C.Dead() return { k = "dead" } end
 function C.Prog(marker) return { k = "prog", marker = marker } end
 function C.KO() return { k = "ko" } end
+function C.Lost(id) return { k = "lost", comp = id } end
 function C.Any(list) return { k = "any", list = list } end
 function C.All(list) return { k = "all", list = list } end
 function C.Not(c) return { k = "not", c = c } end
@@ -140,6 +143,7 @@ Guides.ByUuid = {}
 Guides.StepById = {}         -- stepId -> step
 Guides.StepOwner = {}        -- stepId -> companion
 Guides.StepIndex = {}        -- stepId -> position inside its companion
+Guides.JoinStep = {}         -- companion id -> the step that makes them join
 Guides.Errors = {}
 
 local function addError(fmt, ...)
@@ -183,6 +187,35 @@ local function normalizeNotes(list, owner, what)
     return out
 end
 
+-- Ways to lose a companion that are the same for all of them. Shown on every
+-- page under "For every companion". Each one was confirmed in the story scripts
+-- (the goal that removes the companion is named after the rule).
+Guides.CommonRules = normalizeNotes({
+    -- _GLO_Shared_Origins: the leaving conversation ends in "CompanionLowRelation"
+    "Approval of -50 or lower makes a companion leave for good, with everything they have equipped.",
+    -- _GLO_Shared_Origins: DB_OriginMayLeaveDialog + the GLO_Companion_Leave flag
+    "Telling a companion to leave for good in a conversation is final: they go and do not come back.",
+    -- Act1_UND_KuoToaGod: the sacrificed companion can no longer be resurrected
+    { act = 1, "Underdark: never offer a companion to BOOOAL, the 'god' of the kuo-toa. A sacrificed companion cannot be brought back." },
+    -- Act2_COL_NecromancerRoom: killing the zombie lifts the block on resurrection;
+    -- on leaving the Colony a still-blocked party member is removed as "Killed"
+    { act = 2, "Mind Flayer Colony: if a party member is turned into a zombie in the necromancer's laboratory, kill the zombie and revive them before you leave the Colony. After that they are gone for good." },
+    -- GLO_Origin_DarkUrge_KillFavourite
+    { act = 2, "Dark Urge only: the night the Urge turns on the companion closest to you, wake them and let them hold you back. Otherwise you kill them in their sleep." },
+    -- Act3_GEN_OrinsAbduction / Act3b_LOW_BhaalTemple: the victim is removed as "CompanionMurdered"
+    { act = 3, "Baldur's Gate: Orin abducts someone from your camp. Save them when you face her in the Temple of Bhaal - if she kills them, they are gone for good." },
+    -- Act3b_LOW_HouseOfHope2
+    { act = 3, "House of Hope: do not let a companion give themselves, body and soul, to Haarlep." },
+}, "common", "rule")
+
+--- Whether a step can only happen with the companion at your side. Such steps wait
+--- for the step that makes the companion join and are missed together with it.
+--- Romance and approval steps always do; set `needsJoin` on a step to override.
+function Guides.NeedsJoin(step)
+    if step.needsJoin ~= nil then return step.needsJoin == true end
+    return step.romance == true or step.kind == "romance" or step.kind == "approval"
+end
+
 --- Called by each Data/Companions/*.lua file.
 function Guides.Register(def)
     if type(def) ~= "table" or type(def.id) ~= "string" then
@@ -211,6 +244,10 @@ function Guides.Register(def)
         addError("%s: 'revivable' must be a sentence explaining how they can be revived before joining", def.id)
         def.revivable = nil
     end
+    if def.joined ~= nil and (type(def.joined) ~= "table" or def.joined.k == nil) then
+        addError("%s: 'joined' must be a single condition", def.id)
+        def.joined = nil
+    end
 
     for i, step in ipairs(def.steps) do
         if type(step.id) ~= "string" then
@@ -230,6 +267,8 @@ function Guides.Register(def)
             Guides.StepById[step.id] = step
             Guides.StepOwner[step.id] = def
             Guides.StepIndex[step.id] = i
+            -- the last recruit step is the one that makes the companion join
+            if step.kind == "recruit" then Guides.JoinStep[def.id] = step end
         end
     end
 
@@ -274,6 +313,11 @@ local function visit(cond, owner)
         for _, c in ipairs(cond.list or {}) do visit(c, owner) end
     elseif k == "not" then
         visit(cond.c, owner)
+    elseif k == "lost" then
+        -- nothing new to watch: the other companion's own conditions are watched already
+        if not Guides.ById[cond.comp] then
+            addError("%s refers to unknown companion '%s'", owner, tostring(cond.comp))
+        end
     end
 end
 
@@ -285,6 +329,7 @@ function Guides.BuildIndex()
     for _, comp in ipairs(Guides.Companions) do
         local owner = comp.id
         visit(comp.recruited, owner)
+        visit(comp.joined, owner)
         for _, c in ipairs(comp.left) do visit(c, owner) end
         if comp.romance then
             visit(comp.romance.dating, owner)
@@ -333,6 +378,9 @@ function Guides.Describe(cond, comp)
         return "Knocked out instead of killed"
     elseif k == "prog" then
         return "Progress: " .. tostring(cond.marker)
+    elseif k == "lost" then
+        local other = Guides.ById[cond.comp]
+        return (other and other.name or tostring(cond.comp)) .. " is gone for good"
     elseif k == "not" then
         return "NOT " .. Guides.Describe(cond.c, comp)
     elseif k == "any" or k == "all" then
@@ -445,6 +493,9 @@ function Guides.Explain(cond, comp, mode)
         return name .. " was knocked out instead of killed"
     elseif k == "prog" then
         return "you have passed that point in the story"
+    elseif k == "lost" then
+        local other = Guides.ById[cond.comp]
+        return (other and other.name or "the other companion") .. " is gone for this playthrough"
     elseif (k == "any" or k == "all") and cond.list and cond.list[1] then
         return Guides.Explain(cond.list[1], comp, mode)
     end

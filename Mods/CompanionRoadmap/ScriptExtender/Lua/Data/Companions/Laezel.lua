@@ -25,6 +25,9 @@ CR.Guides.Register {
         Q(LZ, "LaezelDied_KilledByShadowheart"), Q(LZ, "LaezelDied_KilledAtCampNight"), Q(LZ, "TurnedHostileAtChokepoint"),
         Q(LZ, "LaezelDied_KilledByVossInPlains"), Q(LZ, "LaezelDied_FoundShadowcursedInSCL"), Q(LZ, "TurnedHostileDuringInquisitor"),
         Q(LZ, "LeftInSCL"), Q(CAGE, "KilledLaezel"), Q(CAGE, "LaezelPermaDefeatead"),
+        -- added in 1.0.2: the ways she turns on you at the very end
+        Q(LZ, "TurnedHostile_MorphicPool_OrpheusPath"), Q(LZ, "TurnedHostile_MorphicPool_VlaakithPath"),
+        Q(LZ, "VlaakithPath_LaezelDeadAfterTryingToKillOrpheus"),
     },
     romance = {
         dating = P("ORI_State_DatingLaezel"),
@@ -35,8 +38,13 @@ CR.Guides.Register {
 
     rules = {
         { act = 1, "Free her from the tiefling cage near the crash site early - fighting her or leaving her there loses her." },
+        { act = 1, "The night she decides to kill everyone before they turn: talk her down. If you attack her, or trick her into going first, she is dead for good." },
         { act = 1, "When she and Shadowheart fight at camp, calm them down; a death here is permanent." },
-        { act = 1, "Pull her out of the zaith'isk in the Creche if it starts killing her." },
+        { act = 1, "At the githyanki patrol near the Mountain Pass, let her do the talking and stay close. Attack before they have spoken and she sides with her people; leave her there and the githyanki kill her." },
+        { act = 1, "At the zaith'isk in the Creche, do not simply forbid her to use it - that argument can end with her leaving. Let her try, then pull her out when it starts killing her." },
+        { act = 1, "In the Inquisitor's chamber, do not attack Ch'r'ai W'wargaz, and enter the artefact when Vlaakith orders it. Turn on the githyanki there and Lae'zel turns on you." },
+        { act = 2, "Take her to the Creche in Act 1. If you reach Moonrise Towers or the Gauntlet of Shar without it she wants to go on alone - talk her out of it, because she does not survive the shadow-cursed lands." },
+        { act = 3, "At the very end her loyalty decides: if she follows Orpheus, letting him be consumed turns her against you; if she still serves Vlaakith, freeing him does." },
         "She hates shared love: committing to someone else ends her romance.",
     },
     romanceNotes = {
@@ -90,6 +98,8 @@ CR.Guides.Register {
             avoid = { "Letting it come to blows - one of them can die." },
             done = { Q("ORI_COM_ShadowHeart", "CampFight_Peace") },
             fail = { Q("ORI_COM_ShadowHeart", "CampFight_LaezelDied") },
+            -- the night cannot happen any more once Shadowheart is gone
+            skip = { C.Lost("Shadowheart") },
         },
         {
             id = "LAE_A1_FIND", act = 1, kind = "story",
@@ -114,7 +124,8 @@ CR.Guides.Register {
             avoid = { "Skipping the creche entirely - her questline loses its Act 1 turning point." },
             rewards = "Her crisis of faith begins - the turning point of her personal quest.",
             done = { Q(LZ, "VlaakithBetrayal_LaezelPresent"), Q(LZ, "FindCure_AfterBetrayal"), Q(LZ, "CrecheFinished"), Q(LZ, "SpokeToVlaakith_LaezelConvinced") },
-            fail = { Q(LZ, "PointOfNoReturnReachedWithoutCreche"), Q(LZ, "LaezelLeftAtCreche") },
+            -- "LaezelLeftAtCreche" is not a failure: she went ahead and waits for you at the creche
+            fail = { Q(LZ, "PointOfNoReturnReachedWithoutCreche") },
             after = { "LAE_A1_FIND" },
             closes = "act1",
         },
@@ -192,9 +203,13 @@ CR.Guides.Register {
             title = "Free Prince Orpheus",
             where = "The Astral Prism (after the Netherstones)",
             todo = { "Use the Orphic Hammer to break Orpheus's chains." },
-            avoid = { "Letting the Emperor absorb Orpheus angers Lae'zel." },
+            avoid = {
+                "On the Orpheus path: letting Orpheus be consumed turns Lae'zel against you for good.",
+                "While she still serves Vlaakith: freeing Orpheus turns her against you, unless you get her to wait until the Netherbrain is dead.",
+            },
             rewards = "Lae'zel can lead the githyanki rebellion beside Orpheus.",
             done = { Q(ORPH, "SmashedChains") },
+            fail = { Q(LZ, "TurnedHostile_MorphicPool_OrpheusPath"), Q(LZ, "TurnedHostile_MorphicPool_VlaakithPath") },
             skip = { Q(ORPH, "AssimilatedOrpheus") },
             after = { "LAE_A3_HAMMER" },
         },

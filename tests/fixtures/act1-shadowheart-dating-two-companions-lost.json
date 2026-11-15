@@ -22,9 +22,15 @@
     "HAL_A1_GROVE": "P",
     "MIN_A1_KO": "N",
     "JAH_A2_RECRUIT": "U",
-    "MINSC_A3_KO": "U"
+    "MINSC_A3_KO": "U",
+    "SH_A1_LAEZEL": "X",
+    "LAE_A1_SHADOWHEART": "M",
+    "KAR_A1_ROMANCE": "P",
+    "WYLL_A1_PARTY": "P",
+    "GALE_A1_WEAVE": "P",
+    "GALE_A1_TRUTH": "P"
   },
-  "known_gaps": "Not asserted yet, because 1.0.1 gets them wrong: SH_A1_LAEZEL is shown as open although Lae'zel is lost (should be X); KAR_A1_ROMANCE, WYLL_A1_PARTY, GALE_A1_WEAVE and GALE_A1_TRUTH are shown as open although that companion is not recruited (should be P). Move them into expect when fixed.",
+  "fixed_in_1.0.2": "The last six entries of expect were wrong in 1.0.1, which wrote this file: SH_A1_LAEZEL stayed open although Lae'zel was lost, and the romance steps of Karlach, Wyll and Gale (and Gale's backstory talk) were shown as TO DO although they had not been recruited.",
   "act": 1,
   "avatar": "11111111-2222-3333-4444-555555555555",
   "camp": {

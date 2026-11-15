@@ -19,6 +19,8 @@ CR.Guides.Register {
     left = {
         Q(AS, "CompanionMurdered"), Q(AS, "CompanionLowRelation"), Q(AS, "CompanionHostile"),
         Q(AS, "MetGur_AstarionCapture"), Q(AS, "MetGur_AstarionDisappear"),
+        -- added in 1.0.2: siding with the Gur against him in Act 3
+        Q(AS, "Ulma_BetrayedAstarion"),
     },
     romance = {
         dating = P("ORI_State_DatingAstarion"),
@@ -30,8 +32,12 @@ CR.Guides.Register {
     rules = {
         { act = 1, "Never tell the Gur monster hunter (Gandrel) where your camp is or hand Astarion over - he is captured and gone." },
         { act = 1, "During the bite night, stop him before he drinks you dry (two failed stops = death)." },
+        { act = 1, "When you find out what he is, do not stake him and do not send him away." },
         { act = 2, "In Act 2, let Astarion make his own choice with Araj Oblodra - pushing him ends the romance." },
+        { act = 3, "When the Gur leader Ulma asks for your help against him, refuse - siding with the Gur ends with Astarion dead." },
+        { act = 3, "Take him with you to Cazador. If Cazador is allowed to finish the ritual, Astarion is sacrificed with the other spawn." },
         { act = 3, "At Cazador's ritual: refusing or failing to talk him down makes him leave; helping him ascend makes him a Vampire Ascendant." },
+        { act = 3, "Once he has started the ritual, do not interrupt it - he attacks you." },
     },
     romanceNotes = {
         "Act 1: at 40+ approval (before the Grove is resolved) he offers to spend the night with you.",

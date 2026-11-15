@@ -17,11 +17,14 @@ CR.Guides.Register {
 
     recruited = G("GLO_Origin_PartOfTheTeam_Minsc"),
     left = { Q(HH, "MinscDefeated"), Q(HH, "FailedToSaveMinsc"), F("ORI_Minsc_State_PermaDefeated", "any") },
+    -- Until he has joined, the game keeps the tags on him that otherwise mean "gone for good".
+    joined = Q(HH, "RecruitedMinsc"),
 
     rules = {
         { act = 2, "Jaheira must be recruited in Act 2 - without her, Minsc cannot be saved." },
         { act = 3, "Bring Jaheira to the sewer fight and make the FINAL blow on Minsc non-lethal (melee/unarmed with Non-Lethal Attacks on)." },
         { act = 3, "Ask the Emperor to shield him, then take him into the party - refusing makes Jaheira leave too." },
+        { act = 3, "He stands or falls with Jaheira: if she leaves, so does he. Never attack her children with him around, and never offer either of them at Sarevok's Murder Tribunal." },
     },
     romanceNotes = { "Minsc cannot be romanced." },
 

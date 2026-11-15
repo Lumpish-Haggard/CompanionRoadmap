@@ -46,6 +46,7 @@ Both bootstraps load `Shared/Core.lua`, `Data/Flags.lua`, `Data/CompanionGuides.
 | relationship | romance flags plus `DB_ORI_Dating` / `DB_ORI_Partnered` |
 | recruited | `GLO_Origin_PartOfTheTeam_<Name>` or `DB_PartOfTheTeam` |
 | dead | `IsDead`, `DB_PermaDefeated` |
+| removed for good | `IsTagged` for the two tags the story's leave-permanently routine sets, while the companion is not in the team |
 | knocked out | `DB_KnockedOut`, `DB_ORI_Minthara_RemoveKnockedOutLater`, `HasActiveStatus(KNOCKED_OUT*)` |
 | approval | `GetApprovalRating(companion, avatar)` |
 | progress | `DB_CurrentLevel` / `GetRegion`, `VISITEDREGION_*` and the marker flags |

@@ -34,6 +34,11 @@ FIXTURES = os.path.join(ROOT, "tests", "fixtures")
 
 NULL = "00000000-0000-0000-0000-000000000000"
 AVATAR = "Tav_11111111-2222-3333-4444-555555555555"
+
+# Tags the story puts on a companion it removes for good
+# (PROC_Origins_CompanionLeavePermanently / PROC_Origins_RemoveFromTeam in _GLO_Shared_Origins).
+TAG_NO_RESURRECTION = "22a75dbb-1588-407e-b559-5aa4e6d4e6a6"   # BLOCK_RESURRECTION
+TAG_DOWNED_DISABLED = "7095912e-fcb9-41dd-aec3-3cf7803e4b22"   # DOWNED_DISABLED
 CLIENT_PEER = 65536
 
 UUID = {
@@ -77,6 +82,7 @@ class World:
         self.approval = {}
         self.dead = set()
         self.statuses = set()
+        self.tags = set()           # (character guid, tag guid)
         self.host = AVATAR
         self.set_level("WLD_Main_A")
         self.dbs["DB_Avatars"] = [(AVATAR,)]
@@ -105,6 +111,8 @@ class World:
             return 1 if guid(args[0]) in self.dead else 0
         if name == "HasActiveStatus":
             return 1 if (guid(args[0]), args[1]) in self.statuses else 0
+        if name == "IsTagged":
+            return 1 if (guid(args[0]), guid(args[1])) in self.tags else 0
         if name == "GetHostCharacter":
             return self.host
         if name == "GetRegion":
@@ -301,6 +309,10 @@ def world_from_report(report):
             world.dbs["DB_PartOfTheTeam"].append((uuid,))
         if comp.get("ko"):
             world.dbs["DB_KnockedOut"].append((uuid,))
+        if comp.get("noRes"):
+            world.tags.add((uuid, TAG_NO_RESURRECTION))
+        if comp.get("downed"):
+            world.tags.add((uuid, TAG_DOWNED_DISABLED))
         if comp.get("approval") is not None:
             world.approval[uuid] = comp["approval"]
         if comp.get("dating"):
@@ -487,6 +499,155 @@ def test_minthara_knockout_and_dependencies():
     check(not server2.errors() and not client2.errors(), f"errors: {server2.errors()} {client2.errors()}")
 
 
+def test_steps_wait_for_recruitment():
+    """Romance and approval steps wait for the companion to join, and are missed with the recruit step."""
+    world, sim, server, client = make()
+    world.set_flag("GLO_Origin_PartOfTheTeam_Shadowheart")
+    world.set_flag("VISITEDREGION_WLD_Main_A")
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+
+    # nobody but Shadowheart has joined: their romance steps wait, hers are open
+    for step_id in ("KAR_A1_ROMANCE", "WYLL_A1_PARTY", "GALE_A1_WEAVE", "GALE_A1_TRUTH", "AST_A1_ROMANCE", "LAE_A1_ROMANCE"):
+        check(step_status(client, step_id) == "P", f"{step_id} should wait for recruitment, got {step_status(client, step_id)}")
+    check(step_status(client, "SH_A1_PARTY") in ("A", "N"), "a recruited companion's romance step is open")
+    check(step_status(client, "WYLL_A1_DUKE") in ("A", "N"), "a step that does not need the companion stays open")
+
+    # joining opens them, with no journal entry needed
+    world.set_flag("GLO_Origin_PartOfTheTeam_Karlach")
+    server.mock.FireOsiris("FlagSet", "GLO_Origin_PartOfTheTeam_Karlach_" + FLAG["GLO_Origin_PartOfTheTeam_Karlach"], "NULL_" + NULL, 0)
+    sim.run(max_ms=1000)
+    check(step_status(client, "KAR_A1_ROMANCE") in ("A", "N"), f"Karlach joined: {step_status(client, 'KAR_A1_ROMANCE')}")
+
+    # Act 1 locks with Gale never recruited: his recruit step is missed, and his romance with it
+    world.set_flag("Act2_PointOfNoReturnReached")
+    world.set_flag("VISITEDREGION_SCL_Main_A")
+    world.set_level("SCL_Main_A")
+    server.mock.FireOsiris("FlagSet", "Act2_PointOfNoReturnReached_" + FLAG["Act2_PointOfNoReturnReached"], "NULL_" + NULL, 0)
+    sim.run(max_ms=1000)
+    check(step_status(client, "GALE_A1_PORTAL") == "M", "an unrecruited Gale is missed once Act 1 locks")
+    check(step_status(client, "GALE_A2_STARS") == "M", f"his Act 2 romance must not stay open: {step_status(client, 'GALE_A2_STARS')}")
+    check(step_status(client, "GALE_A3_MYSTRA") == "M", f"nor his Act 3 steps: {step_status(client, 'GALE_A3_MYSTRA')}")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+
+
+def test_two_companion_steps():
+    """The night Lae'zel and Shadowheart fight no longer stays open when one of them is gone."""
+    world, sim, server, client = make()
+    for name in ("Shadowheart", "Laezel"):
+        world.set_flag("GLO_Origin_PartOfTheTeam_" + name)
+    world.set_flag("VISITEDREGION_WLD_Main_A")
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+    check(step_status(client, "SH_A1_LAEZEL") in ("A", "N"), "both are here: the step is open")
+    check(step_status(client, "LAE_A1_SHADOWHEART") in ("A", "N"), "both are here: the step is open")
+
+    # Lae'zel turns on the party at the githyanki patrol
+    world.clear_flag("GLO_Origin_PartOfTheTeam_Laezel")
+    world.quest("ORI_COM_Laezel", "TurnedHostileAtChokepoint")
+    server.mock.FireOsiris("FlagCleared", "GLO_Origin_PartOfTheTeam_Laezel_" + FLAG["GLO_Origin_PartOfTheTeam_Laezel"], "NULL_" + NULL, 0)
+    server.eval("CR.Server.MarkDirty()")
+    sim.run(max_ms=1000)
+    check(step_status(client, "LAE_A1_SHADOWHEART") == "M", "Lae'zel is gone: her own step is missed")
+    check(step_status(client, "SH_A1_LAEZEL") == "X", f"Shadowheart's side no longer applies: {step_status(client, 'SH_A1_LAEZEL')}")
+    client.eval("CR.UI.SetOpen(true)")
+    client.eval('CR.UI.Select("Shadowheart")')
+    sim.run()
+    state = str(client.eval("return CR.UI.page.steps.SH_A1_LAEZEL.state.Label"))
+    check(state == "Not needed: Lae'zel is gone for this playthrough", f"the reason is given in plain words: {state}")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+
+
+def test_left_for_good_without_journal():
+    """A companion the game removed for good is lost even when the journal says nothing.
+
+    The story routine behind every permanent departure takes the companion out of the
+    team and tags them; Halsin staying behind in Act 2 is one case with no journal entry."""
+    world, sim, server, client = make()
+    world.set_flag("GLO_Origin_PartOfTheTeam_Shadowheart")
+    world.set_flag("VISITEDREGION_WLD_Main_A")
+    halsin, minsc, laezel = UUID["Halsin"], UUID["Minsc"], UUID["Laezel"]
+    for tag in (TAG_NO_RESURRECTION, TAG_DOWNED_DISABLED):
+        world.tags.add((halsin, tag))       # removed by the game, nothing in the journal
+        world.tags.add((minsc, tag))        # Minsc carries both tags until he joins
+    world.tags.add((laezel, TAG_DOWNED_DISABLED))   # one tag alone means nothing (left the tutorial ship)
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+
+    def comp(name):
+        return str(client.eval(f"""
+            local c = CR.Client.Snapshot.comps.{name}
+            return tostring(c.lost) .. "/" .. tostring(c.why)
+        """))
+    check(comp("Halsin") == "true/left", f"Halsin should be lost: {comp('Halsin')}")
+    check(step_status(client, "HAL_A3_ROMANCE") == "M", "and his steps missed")
+    check(comp("Minsc") == "false/nil", f"Minsc has not joined yet, so his tags mean nothing: {comp('Minsc')}")
+    check(comp("Laezel") == "false/nil", f"one tag is not enough: {comp('Laezel')}")
+    check(client.eval("return CR.UI.sidebar.Halsin.info.Label") == "Lost for this playthrough", "sidebar text for Halsin")
+
+    # a companion who is in the team is never lost, whatever tags they carry
+    world.set_flag("GLO_Origin_PartOfTheTeam_Halsin")
+    server.mock.FireOsiris("FlagSet", "GLO_Origin_PartOfTheTeam_Halsin_" + FLAG["GLO_Origin_PartOfTheTeam_Halsin"], "NULL_" + NULL, 0)
+    sim.run(max_ms=1000)
+    check(comp("Halsin") == "false/nil", f"in the team means not lost: {comp('Halsin')}")
+
+    # once Minsc has joined and is then removed, the tags count
+    world.quest("ORI_HighHarper", "RecruitedMinsc")
+    server.eval("CR.Server.MarkDirty()")
+    sim.run(max_ms=1000)
+    check(comp("Minsc") == "true/left", f"Minsc joined and was then removed: {comp('Minsc')}")
+
+    # the report file carries the tags, so a report replays to the same result
+    server.mock.ConsoleCommands["roadmap"]("roadmap", "report")
+    report = json.loads(str(server.mock.Files["CompanionRoadmap/report.json"]))
+    check(report["raw"]["companions"]["Minsc"].get("noRes") and report["raw"]["companions"]["Minsc"].get("downed"),
+          "the report should record the two tags")
+    world2, sim2, server2, client2 = replay_report(report)
+    lost = str(client2.eval("return tostring(CR.Client.Snapshot.comps.Minsc.lost)"))
+    check(lost == "true", f"replaying the report should reproduce the lost state: {lost}")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+    check(not server2.errors() and not client2.errors(), f"errors: {server2.errors()} {client2.errors()}")
+
+
+def test_scheduler_facts():
+    """Facts taken from the game's camp-scene scheduler in 1.0.2."""
+    world, sim, server, client = make()
+    for name in ("Shadowheart", "Wyll", "Gale"):
+        world.set_flag("GLO_Origin_PartOfTheTeam_" + name)
+    for f in ("VISITEDREGION_WLD_Main_A", "VISITEDREGION_SCL_Main_A", "VISITEDREGION_BGO_Main_A",
+              "ORI_Shadowheart_State_SharPath", "NIGHT_Wyll_Act3Romance"):
+        world.set_flag(f)
+    world.set_level("BGO_Main_A")
+    world.set_flag("ORI_State_DatingGale", AVATAR)
+    world.set_flag("ORI_State_WasPartneredWithWyll", AVATAR)
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+
+    # Wyll's Act 3 night also plays as his goodbye when the Duke is dead: not a proposal
+    check(step_status(client, "WYLL_A3_PROPOSAL") == "M", f"a goodbye is not a proposal: {step_status(client, 'WYLL_A3_PROPOSAL')}")
+    # Gale's starry night needs Elminster's message first
+    check(step_status(client, "GALE_A2_STARS") in ("P", "M", "I"), f"no Elminster, no night: {step_status(client, 'GALE_A2_STARS')}")
+    # the Dark Justiciar's night is cancelled once the House of Grief is concluded
+    check(step_status(client, "SH_A3_SHARNIGHT") in ("A", "N"), f"Shar path night is open: {step_status(client, 'SH_A3_SHARNIGHT')}")
+    world.set_flag("ORI_Shadowheart_State_ConcludedGrotto")
+    server.mock.FireOsiris("FlagSet", "ORI_Shadowheart_State_ConcludedGrotto_" + FLAG["ORI_Shadowheart_State_ConcludedGrotto"], "NULL_" + NULL, 0)
+    sim.run(max_ms=1000)
+    check(step_status(client, "SH_A3_SHARNIGHT") == "M", f"cancelled by the House of Grief: {step_status(client, 'SH_A3_SHARNIGHT')}")
+
+    # the proposal itself: the night played and you are still his partner
+    world.clear_flag("ORI_State_WasPartneredWithWyll", AVATAR)
+    world.set_flag("ORI_State_PartneredWithWyll", AVATAR)
+    server.mock.FireOsiris("FlagSet", "ORI_State_PartneredWithWyll_" + FLAG["ORI_State_PartneredWithWyll"], AVATAR, 0)
+    sim.run(max_ms=1000)
+    check(step_status(client, "WYLL_A3_PROPOSAL") == "D", f"partnered after the night: {step_status(client, 'WYLL_A3_PROPOSAL')}")
+    check(client.eval('return CR.Guides.StepById.KAR_A3_DATE.approval') == 30, "Karlach's date needs 30 approval")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+
+
 def test_origin_avatar_and_console():
     world = World()
     world.host = "S_Player_ShadowHeart_" + UUID["Shadowheart"]
@@ -639,7 +800,7 @@ def test_spoiler_setting():
         """))
 
     # nothing from later acts is revealed before the player has chosen
-    hidden = "1|4|4 more for later acts are hidden by your spoiler setting."
+    hidden = "1|6|6 more for later acts are hidden by your spoiler setting."
     check(client.eval("return CR.UI.h.firstRun.Visible") is True, "the first-run spoiler question should be shown")
     check(notes("rules") == hidden, f"unanswered: later-act rules must stay hidden: {notes('rules')}")
 
@@ -647,12 +808,14 @@ def test_spoiler_setting():
     click(client, sim, "Everything")
     check(client.eval('return CR.Settings.Get("spoilers")') == "full", "the answer should set the spoiler level")
     check(client.eval("return CR.UI.h.firstRun.Visible") is False, "the question should disappear once answered")
-    check(notes("rules") == "1,2,2,3,2|0|", f"'Everything' shows every rule: {notes('rules')}")
+    check(notes("rules") == "1,2,2,2,2,3,3|0|", f"'Everything' shows every rule: {notes('rules')}")
+    check(notes("common") == "0,0,1,2,2,3,3|0|", f"'Everything' shows every shared rule: {notes('common')}")
 
     # "titles": only what the player has reached
     client.eval('CR.Settings.Set("spoilers", "titles")')
     check(notes("rules") == hidden, f"Act 1: only the Act 1 rule may be visible: {notes('rules')}")
-    check(notes("notes").startswith("1,1|3|"), f"Act 1: only Act 1 romance notes: {notes('notes')}")
+    check(notes("common") == "0,0,1|4|4 more for later acts are hidden by your spoiler setting.", f"Act 1 shared rules: {notes('common')}")
+    check(notes("notes").startswith("1,1|4|"), f"Act 1: only Act 1 romance notes: {notes('notes')}")
     counter = str(client.eval("return CR.UI.page.counters[1].label.Label"))
     check(counter.startswith("A hidden score"), f"the tracker's name is a spoiler in Act 1: {counter}")
     check(client.eval("return CR.UI.page.counters[1].items[4].line.Label") == "A later moment", "Act 2 tracker items are masked")
@@ -664,11 +827,12 @@ def test_spoiler_setting():
     server.mock.FireOsiris("FlagSet", "VISITEDREGION_SCL_Main_A_" + FLAG["VISITEDREGION_SCL_Main_A"], "NULL_" + NULL, 0)
     sim.run(max_ms=1000)
     check(client.eval("return CR.Client.Snapshot.act") == 2, "the save should now be in Act 2")
-    check(notes("rules") == "1,2,2,2|1|1 more for later acts is hidden by your spoiler setting.", f"Act 2 rules: {notes('rules')}")
+    check(notes("rules") == "1,2,2,2,2|2|2 more for later acts are hidden by your spoiler setting.", f"Act 2 rules: {notes('rules')}")
+    check(notes("common") == "0,0,1,2,2|2|2 more for later acts are hidden by your spoiler setting.", f"Act 2 shared rules: {notes('common')}")
     check(str(client.eval("return CR.UI.page.counters[1].label.Label")).startswith("Nightsong points"), "Act 2 reveals the tracker")
 
     client.eval('CR.Settings.Set("spoilers", "full")')
-    check(notes("rules") == "1,2,2,3,2|0|", "showing everything brings all rules back")
+    check(notes("rules") == "1,2,2,2,2,3,3|0|", "showing everything brings all rules back")
     check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
 
 
@@ -968,6 +1132,10 @@ TESTS = [
     test_report_fixtures,
     test_act2_point_of_no_return,
     test_minthara_knockout_and_dependencies,
+    test_steps_wait_for_recruitment,
+    test_two_companion_steps,
+    test_left_for_good_without_journal,
+    test_scheduler_facts,
     test_origin_avatar_and_console,
     test_mcm_integration,
 ]

@@ -141,8 +141,12 @@ CR.Guides.Register {
                 "With high approval, Halsin suggests a night together.",
                 "If you have a partner, ask them first (Shadowheart, Astarion and Karlach agree).",
                 "Meet him by the secluded tree on the next long rest.",
+                "Partnered with Karlach? He waits until her second heart upgrade is done.",
             },
-            avoid = { "Partnered with Lae'zel, Wyll, Gale or Minthara: you must break up with them or turn Halsin down." },
+            avoid = {
+                "Partnered with Lae'zel, Wyll, Gale or Minthara: you must break up with them or turn Halsin down.",
+                "Putting it off: get your partner's answer and go to him straight away. The night is on offer for two long rests only, and he does not ask twice.",
+            },
             rewards = "An open relationship with Halsin.",
             done = { P("ORI_State_PartneredWithHalsin"), P("ORI_State_PartneredWithHalsinSecondary"), G("NIGHT_Halsin_Romance_Execution") },
             after = { "HAL_A2_CURSE" },

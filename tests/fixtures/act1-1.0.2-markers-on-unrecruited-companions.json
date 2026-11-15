@@ -1,0 +1,93 @@
+{
+  "about": "Same Act 1 save as the first fixture, later on, written by 1.0.2 (the build released as 1.0.2). Shadowheart recruited and dating (approval 82, wound talk done). Lae'zel killed at the cage, Astarion dead before joining. The first real save with the two removal markers recorded: Halsin, Minthara and Minsc carry the no-resurrection marker before ever joining, without the second marker, and must not count as lost; Lae'zel carries both.",
+  "expect": {
+    "SH_A1_RECRUIT": "D",
+    "SH_A1_WOUND": "D",
+    "SH_A1_PARTY": "D",
+    "SH_A1_LAEZEL": "X",
+    "SH_A1_NOBLESTALK": "N",
+    "LAE_A1_CAGE": "M",
+    "LAE_A1_SHADOWHEART": "M",
+    "AST_A1_RECRUIT": "M",
+    "KAR_A1_RECRUIT": "N",
+    "KAR_A1_ROMANCE": "P",
+    "WYLL_A1_PARTY": "P",
+    "GALE_A1_WEAVE": "P",
+    "GALE_A1_TRUTH": "P",
+    "HAL_A1_RESCUE": "N",
+    "HAL_A1_GROVE": "P",
+    "HAL_A3_ROMANCE": "U",
+    "MIN_A1_KO": "N",
+    "MIN_A2_ROMANCE": "U",
+    "MINSC_A3_KO": "U",
+    "JAH_A2_RECRUIT": "U"
+  },
+  "act": 1,
+  "avatar": "11111111-2222-3333-4444-555555555555",
+  "camp": {
+    "completed": [
+      "NIGHT_Ceremorphosis1_98059567-b62a-4db8-9ce4-d39c792e0238",
+      "NIGHT_FirstNightContemplation_9e5cfbe2-f4f3-4249-a1b7-142a7899277a",
+      "NIGHT_Ceremorphosis2_485f589f-0da1-4eea-9a28-210f91837a69",
+      "NIGHT_ShadowHeart_WildMagic_5ce39313-f4bc-4aba-a51e-bfb9cd9ecfd1",
+      "NIGHT_Shadowheart_Romance1_AfterCelebration_f8193afc-a7cd-4d3c-a6d8-dd4270701d96",
+      "NIGHT_ShadowHeart_Box_2de162ec-4272-4750-945f-9d306c5ba0da"
+    ],
+    "expiring": [],
+    "nights": []
+  },
+  "format": 1,
+  "game": "v4.76.31.656",
+  "level": "WLD_Main_A",
+  "markers": {
+    "act1Locked": false, "act3": false, "colony": false, "endgame": false,
+    "lastLight": false, "lowerCity": false, "moonrise": false, "sharTemple": false
+  },
+  "mod": "1.0.2",
+  "overrides": [],
+  "raw": {
+    "companions": {
+      "Astarion": { "approval": 0, "dating": false, "dead": true, "downed": false, "ko": false, "noRes": false, "partnered": false, "perma": false, "team": false, "uuid": "c7c13742-bacd-460a-8f65-f864fe41f255" },
+      "Gale": { "approval": 0, "dating": false, "dead": false, "downed": false, "ko": false, "noRes": false, "partnered": false, "perma": false, "team": false, "uuid": "ad9af97d-75da-406a-ae13-7071c563f604" },
+      "Halsin": { "approval": 0, "dating": false, "dead": false, "downed": false, "ko": false, "noRes": true, "partnered": false, "perma": false, "team": false, "uuid": "7628bc0e-52b8-42a7-856a-13a6fd413323" },
+      "Jaheira": { "approval": 0, "dating": false, "dead": false, "downed": false, "ko": false, "noRes": false, "partnered": false, "perma": false, "team": false, "uuid": "91b6b200-7d00-4d62-8dc9-99e8339dfa1a" },
+      "Karlach": { "approval": 0, "dating": false, "dead": false, "downed": false, "ko": false, "noRes": false, "partnered": false, "perma": false, "team": false, "uuid": "2c76687d-93a2-477b-8b18-8a14b549304c" },
+      "Laezel": { "approval": 0, "dating": false, "dead": true, "downed": true, "ko": false, "noRes": true, "partnered": false, "perma": true, "team": false, "uuid": "58a69333-40bf-8358-1d17-fff240d7fb12" },
+      "Minsc": { "approval": 0, "dating": false, "dead": false, "downed": false, "ko": false, "noRes": true, "partnered": false, "perma": false, "team": false, "uuid": "0de603c5-42e2-4811-9dad-f652de080eba" },
+      "Minthara": { "approval": 0, "dating": false, "dead": false, "downed": false, "ko": false, "noRes": true, "partnered": false, "perma": false, "team": false, "uuid": "25721313-0c15-4935-8176-9f134385451b" },
+      "Shadowheart": { "approval": 82, "dating": true, "dead": false, "downed": false, "ko": false, "noRes": false, "partnered": false, "perma": false, "team": true, "uuid": "3ed74f06-3c60-42dc-83f6-f034cb47c679" },
+      "Wyll": { "approval": 0, "dating": false, "dead": false, "downed": false, "ko": false, "noRes": false, "partnered": false, "perma": false, "team": false, "uuid": "c774d764-4a17-48dc-b470-32ace9ce447d" }
+    },
+    "flags": [
+      "1414b3b6-704a-43dc-b7b5-62f3b7bfc28a@00000000-0000-0000-0000-000000000000",
+      "1414b3b6-704a-43dc-b7b5-62f3b7bfc28a@11111111-2222-3333-4444-555555555555",
+      "1414b3b6-704a-43dc-b7b5-62f3b7bfc28a@3ed74f06-3c60-42dc-83f6-f034cb47c679",
+      "20efdeb6-f531-479c-a6dc-212e065d3ae0@00000000-0000-0000-0000-000000000000",
+      "20efdeb6-f531-479c-a6dc-212e065d3ae0@11111111-2222-3333-4444-555555555555",
+      "20efdeb6-f531-479c-a6dc-212e065d3ae0@3ed74f06-3c60-42dc-83f6-f034cb47c679",
+      "7f9ac9e8-1e8d-4bf8-8716-68215f0f066e@00000000-0000-0000-0000-000000000000",
+      "7f9ac9e8-1e8d-4bf8-8716-68215f0f066e@11111111-2222-3333-4444-555555555555",
+      "7f9ac9e8-1e8d-4bf8-8716-68215f0f066e@3ed74f06-3c60-42dc-83f6-f034cb47c679",
+      "a5d0e9f5-6302-4b5d-ae8a-0a55ad790a57@00000000-0000-0000-0000-000000000000",
+      "a5d0e9f5-6302-4b5d-ae8a-0a55ad790a57@11111111-2222-3333-4444-555555555555",
+      "a5d0e9f5-6302-4b5d-ae8a-0a55ad790a57@3ed74f06-3c60-42dc-83f6-f034cb47c679",
+      "abbc836e-07f0-4951-bb7b-beac52d91b2a@00000000-0000-0000-0000-000000000000",
+      "abbc836e-07f0-4951-bb7b-beac52d91b2a@11111111-2222-3333-4444-555555555555",
+      "abbc836e-07f0-4951-bb7b-beac52d91b2a@3ed74f06-3c60-42dc-83f6-f034cb47c679",
+      "e87f1e21-a758-47ae-8c0e-9e715eb289b5@11111111-2222-3333-4444-555555555555"
+    ],
+    "quests": [
+      "CHA_LaezelRecruit/KilledLaezel",
+      "CHA_LaezelRecruit/SidedTieflings",
+      "ORI_COM_Laezel/LaezelDied_Generic",
+      "ORI_COM_ShadowHeart/IncurableWoundCure",
+      "ORI_COM_ShadowHeart/Recruited_Beach",
+      "ORI_COM_ShadowHeart/ToldSeluniteConnection",
+      "ORI_COM_ShadowHeart/WolfDreamShared",
+      "TUT_ShadowheartEscape/FreedAndRecruited",
+      "TUT_ShadowheartEscape/UsedRune"
+    ]
+  },
+  "se": "33",
+  "steps": {}
+}

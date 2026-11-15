@@ -34,7 +34,9 @@ local SH = "ORI_COM_ShadowHeart"
 | `subtitle` | string | One line under the name. |
 | `romanceable` | bool | Shows relationship state and the romance panel. |
 | `recruited` | condition | True while the companion is in camp or party (`GLO_Origin_PartOfTheTeam_<Name>`). |
-| `left` | condition list | Any true means the companion is gone for good. Their unfinished steps become MISSED. |
+| `left` | condition list | Any true means the companion is gone for good. Their unfinished steps become MISSED. See [Losing a companion](#losing-a-companion). |
+| `joined` | condition | Only for a companion the game tags as "gone" before they ever join (Minsc): the moment after which those tags can be trusted. |
+| `revivable` | string | Only for a companion who can still be revived when they die before joining (Wyll, Lae'zel): the sentence that says how. |
 | `romance` | table | `dating`, `partnered`, `ex` conditions and a `closed` list (romance ended). |
 | `rules` | string list | The "Golden rules" shown at the top of the page: things that lose the companion. |
 | `romanceNotes` | string list | The "Romance path" summary. |
@@ -62,7 +64,8 @@ local SH = "ORI_COM_ShadowHeart"
 | `done` | condition list | Any true means DONE. |
 | `fail` | condition list | Any true means MISSED. |
 | `skip` | condition list | Any true means N/A (another path was taken). |
-| `after` | step id list | Steps that must be finished first (WAITING until then; MISSED if one of them was missed). |
+| `after` | step id list | Steps of the **same companion** that must be finished first (WAITING until then; MISSED if one of them was missed). |
+| `needsJoin` | bool | Whether the step can only happen with the companion at your side. Romance and approval steps always do; set `true` on a story step that does, or `false` to opt out. See [Waiting for recruitment](#waiting-for-recruitment). |
 | `closes` | deadline id | The point of no return after which this step can no longer be done. |
 | `alt` | string | Group of alternative routes; once one is done, the others become N/A (e.g. Minthara knockout vs raid). |
 
@@ -79,6 +82,7 @@ local SH = "ORI_COM_ShadowHeart"
 | `C.Dead()` | This companion is dead or permanently defeated. |
 | `C.KO()` | This companion is knocked out instead of dead (Minthara's good path). |
 | `C.Prog(marker)` | A progress marker from `CR.Guides.Markers` was reached. |
+| `C.Lost("Laezel")` | **Another** companion (by guide id) is gone for good. For steps that involve two companions; put it in `skip` so the step becomes N/A. |
 | `C.Any{...}`, `C.All{...}`, `C.Not(c)` | Combinations. |
 
 Lists (`done`, `fail`, `skip`, `left`) are "any of". Use `C.All{}` for "both".
@@ -99,9 +103,39 @@ romanceNotes = {
 
 The act decides when the line is shown if the player limits spoilers: a line is visible once the player has reached that act. Untagged lines are always visible, so tag anything that gives away a later act. Counters accept `act`, `alias` and `aliasHelp` (shown instead of the real name and help before that act), and each counter item accepts `act`.
 
+Rules that are the same for every companion (approval at -50, BOOOAL, Orin's abduction, ...) live in `Guides.CommonRules` in `Data/CompanionGuides.lua` and are shown on every page under "For every companion". Do not repeat them per companion.
+
+A golden rule needs a source in the game files: the story goal that removes the companion, a journal entry, or the conversation in which they can leave. Add it to [COVERAGE.md](COVERAGE.md) with that source. If you only have a published reference, list the point under *Still open* there instead.
+
+## Losing a companion
+
+A companion counts as lost for the playthrough when any of these is true:
+
+1. one of their `left` conditions (usually a journal entry),
+2. the game's "permanently defeated" record,
+3. the game removed them for good. The story routine that does this (`PROC_Origins_CompanionLeavePermanently`) takes the companion out of the team and tags them, whether or not anything is written to the journal. The tracker reads those tags, so a departure with no journal entry is still detected. A companion who is in the team is never lost this way. Minsc carries the tags until he joins, which is what `joined` is for.
+4. they are dead and were never recruited (see below).
+
+Add a `left` condition whenever the journal records the loss: it is what the report file and the "Missed" explanation can name. The tags are the safety net.
+
 ## Dying before joining
 
 A companion who is dead and was never recruited is treated as lost: in most cases they cannot be revived or recruited any more. Set `revivable = "sentence"` on the companion when the game does allow it (Wyll, Lae'zel); the sentence tells the player how.
+
+## Waiting for recruitment
+
+The last step of kind `recruit` is the step that makes the companion join. While the companion is not in your team, every step that needs them (`needsJoin`, see the step fields) behaves as if it had that step in `after`: WAITING until they join, MISSED once they can no longer join. A companion who is in the team always satisfies this, whatever the journal says.
+
+Steps that happen before the companion joins (meeting Minthara, saving the Grove for Halsin) are story steps and are not affected.
+
+## Two companions in one step
+
+`after` only works inside one companion. When a step depends on another companion still being around, use `C.Lost`:
+
+```lua
+-- Shadowheart's side of the night Lae'zel draws a blade on her
+skip = { Q(SH, "CampFight_LaezelDied"), C.Lost("Laezel") },
+```
 
 ## How a status is decided
 
@@ -112,11 +146,11 @@ A companion who is dead and was never recruited is treated as lost: in most case
 3. playing as this origin and the step is a recruit/romance step -> **N/A**
 4. any `skip` condition -> **N/A**
 5. any `fail` condition -> **MISSED**
-6. the companion is gone (`left`, or permanently defeated) -> **MISSED**
+6. the companion is lost (see [Losing a companion](#losing-a-companion)) -> **MISSED**
 7. the `closes` deadline was reached -> **MISSED**
-8. a step in `after` is missed -> **MISSED** (blocked)
+8. a step in `after` is missed, or the step needs the companion and they can no longer join -> **MISSED** (blocked)
 9. the step's act is later than the campaign -> **LATER**
-10. a step in `after` is not finished -> **WAITING**
+10. a step in `after` is not finished, or the step needs the companion and they have not joined -> **WAITING**
 11. an earlier act and no `closes` -> **NOT SEEN** (or **N/A** if `optional`)
 12. otherwise **TO DO**; the first one (required before optional) becomes **NEXT**
 

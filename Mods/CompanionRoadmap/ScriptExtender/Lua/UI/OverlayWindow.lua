@@ -599,6 +599,13 @@ local function buildPage(comp)
         page.rules = buildNotes(rules, comp.rules, T.CROSS, T.C.bad)
     end
 
+    -- The ways to lose any companion; the same on every page, so folded until asked for.
+    if #Guides.CommonRules > 0 then
+        local common = content:AddTree("For every companion###crCommon")
+        T.SetColor(common, T.C.bad)
+        page.common = buildNotes(common, Guides.CommonRules, T.CROSS, T.C.bad)
+    end
+
     if #comp.romanceNotes > 0 then
         local romance = content:AddTree((comp.romanceable and "Romance path" or "Romance") .. "###crRomance")
         T.SetColor(romance, T.C.romance)
@@ -984,6 +991,7 @@ local function refreshPage(snap)
     end
 
     refreshNotes(page.rules, act, spoilers)
+    refreshNotes(page.common, act, spoilers)
     refreshNotes(page.notes, act, spoilers)
 
     -- acts and steps

@@ -30,8 +30,10 @@ CR.Guides.Register {
     rules = {
         { act = 1, "His romance can ONLY start at the Tiefling celebration in Act 1 (10+ approval)." },
         { act = 1, "Siding with the goblins (raiding the Grove) makes Wyll leave for good." },
-        { act = 2, "Rescue Mizora in the Mind Flayer Colony - if she dies, Wyll is dragged to Avernus as a lemure." },
+        { act = 1, "When he comes for Karlach, talk him down. If you take up arms to defend her from him, Wyll becomes your enemy." },
+        { act = 2, "Rescue Mizora in the Mind Flayer Colony - if she dies, or you leave her in her pod, Wyll is dragged to Avernus as a lemure." },
         { act = 3, "Keep Duke Ravengard alive in Act 3 - if he dies, Wyll breaks up with you." },
+        { act = 3, "Never let anyone in your party kill the Duke, in the Iron Throne or later at camp - Wyll turns on you." },
     },
     romanceNotes = {
         "Act 1: at the Tiefling celebration, find him by the water and flirt (dance, guessing game or ask for a kiss). 'There will be another time for us' = Dating.",
@@ -159,7 +161,10 @@ CR.Guides.Register {
             where = "Camp ([!] after a long rest), then the banks of the Chionthar",
             todo = { "With the Duke alive, talk to Wyll after a long rest. He proposes with an acorn from the Wilden Oak." },
             rewards = "Engagement and his final romance scene.",
-            done = { G("NIGHT_Wyll_Act3Romance") },
+            -- The same camp night also carries his goodbye when the Duke is dead, so the
+            -- night alone proves nothing: you must still be his partner afterwards.
+            done = { C.All { G("NIGHT_Wyll_Act3Romance"), C.Rel("partnered") } },
+            fail = { P("ORI_State_WasPartneredWithWyll") },
             after = { "WYLL_A2_DANCE", "WYLL_A3_RAVENGARD" },
             closes = "endgame",
         },

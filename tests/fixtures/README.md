@@ -32,3 +32,4 @@ fixtures here do.
 | File | What it shows |
 |---|---|
 | `act1-shadowheart-dating-two-companions-lost.json` | Act 1 at the Emerald Grove, written by 1.0.1. Shadowheart recruited and dating; Lae'zel dead; Astarion dead before he was recruited (so every Astarion step is missed); nobody else recruited. |
+| `act1-1.0.2-markers-on-unrecruited-companions.json` | The same save later on, written by 1.0.2. The first real save with the game's removal markers recorded: Halsin, Minthara and Minsc already carry one of them before joining and must not count as lost. The recorded statuses and camp list were left out to keep the file small; when it was written, replaying the full report reproduced all 99 statuses. |

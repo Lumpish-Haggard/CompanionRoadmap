@@ -97,7 +97,25 @@ local Context = {}
 Context.__index = Context
 
 function E.NewContext(avatar)
-    return setmetatable({ avatar = avatar, cache = {}, comp = nil }, Context)
+    return setmetatable({ avatar = avatar, cache = {}, lost = {}, comp = nil }, Context)
+end
+
+-- The story routine that removes a companion for good
+-- (PROC_Origins_CompanionLeavePermanently in _GLO_Shared_Origins) takes them out
+-- of the team and puts these two tags on them. Most of its callers write nothing
+-- to the journal, so the tags are the only trace that works for every companion.
+local TAG_NO_RESURRECTION = "22a75dbb-1588-407e-b559-5aa4e6d4e6a6"   -- BLOCK_RESURRECTION
+local TAG_DOWNED_DISABLED = "7095912e-fcb9-41dd-aec3-3cf7803e4b22"   -- DOWNED_DISABLED
+E.LeftTags = { noRes = TAG_NO_RESURRECTION, downed = TAG_DOWNED_DISABLED }
+
+function Context:Tagged(comp, tag)
+    local key = "tag:" .. tag .. ":" .. comp.uuid
+    local v = self.cache[key]
+    if v == nil then
+        v = osiInt(Osi.IsTagged, comp.uuid, tag) == 1
+        self.cache[key] = v
+    end
+    return v
 end
 
 function Context:Flag(guid, target)
@@ -187,6 +205,58 @@ function Context:KnockedOut(comp)
     return false
 end
 
+--- True when the game itself removed this companion for good (see the tags above).
+--- A companion who is in the team never counts. Some companions carry both tags
+--- before they ever join (Minsc); their data names the moment after which the
+--- tags can be trusted (`joined`).
+function Context:LeftForGood(comp)
+    local key = "gone:" .. comp.uuid
+    local v = self.cache[key]
+    if v == nil then
+        v = not self:Recruited(comp)
+            and self:Tagged(comp, TAG_DOWNED_DISABLED) and self:Tagged(comp, TAG_NO_RESURRECTION)
+        if v and comp.joined ~= nil then
+            local previous = self.comp
+            self.comp = comp
+            v = self:Check(comp.joined)
+            self.comp = previous
+        end
+        self.cache[key] = v
+    end
+    return v
+end
+
+--- Whether a companion is lost for this playthrough, and why.
+--- Returns lost, why ("died" = died before ever joining, "left" = removed by the
+--- game without a journal entry, nil = one of the companion's own `left` conditions).
+--- Cached, and safe to call for a companion other than the one being evaluated.
+function Context:Lost(comp)
+    local cached = self.lost[comp.id]
+    if cached then return cached[1], cached[2] end
+    local previous = self.comp
+    self.comp = comp
+    local lost, why = false, nil
+    for _, c in ipairs(comp.left) do
+        if self:Check(c) then lost = true break end
+    end
+    if not lost and self:IsPermaDefeated(comp) then lost = true end
+    local isYou = self.avatar ~= nil and CR.Guid(self.avatar) == comp.uuid
+    if not lost and not isYou then
+        if self:LeftForGood(comp) then
+            lost, why = true, "left"
+        elseif self:IsDead(comp) and not comp.revivable
+            and not self:Recruited(comp) and not self:KnockedOut(comp) then
+            -- Died before ever joining: in most cases such a companion can no longer
+            -- be revived or recruited (bg3.wiki "Dead"). The data marks the exceptions
+            -- with `revivable`. A knocked-out Minthara or Minsc is not dead.
+            lost, why = true, "died"
+        end
+    end
+    self.comp = previous
+    self.lost[comp.id] = { lost, why }
+    return lost, why
+end
+
 function Context:Relationship(comp, state)
     local r = comp.romance
     if not r or not self.avatar then return false end
@@ -215,6 +285,10 @@ function Context:Check(cond)
         return #cond.list > 0
     end
     if k == "not" then return not self:Check(cond.c) end
+    if k == "lost" then
+        local other = Guides.ById[cond.comp]
+        return other ~= nil and (self:Lost(other))
+    end
     local comp = self.comp
     if k == "rel" then return comp ~= nil and self:Relationship(comp, cond.state) end
     if k == "rec" then return comp ~= nil and self:Recruited(comp) end
@@ -269,24 +343,16 @@ local S = CR.Status
 local SATISFIED = { [S.DONE] = true, [S.OVERRIDE] = true, [S.NA] = true }
 
 local function evaluateCompanion(ctx, comp, prog, overrides)
+    local lost, why = ctx:Lost(comp)
     ctx.comp = comp
     local result = {}       -- stepId -> { status, evidence }
-    local lost = false
-    for _, c in ipairs(comp.left) do
-        if ctx:Check(c) then lost = true break end
-    end
-    if not lost and ctx:IsPermaDefeated(comp) then lost = true end
     local isYou = ctx.avatar ~= nil and CR.Guid(ctx.avatar) == comp.uuid
-
-    -- Died before ever joining: in most cases such a companion can no longer be
-    -- revived or recruited (bg3.wiki "Dead"). The data marks the exceptions with
-    -- `revivable`. A knocked-out Minthara or Minsc is not dead.
     local dead = ctx:IsDead(comp)
-    local why = nil
-    if not lost and not isYou and dead and not comp.revivable
-        and not ctx:Recruited(comp) and not ctx:KnockedOut(comp) then
-        lost, why = true, "died"
-    end
+
+    -- Steps that need the companion at your side (romance and approval steps, or
+    -- `needsJoin = true`) wait for the step that makes them join, and are missed
+    -- with it. A companion who is in the team now always satisfies this.
+    local joinStep = (not isYou and not ctx:Recruited(comp)) and Guides.JoinStep[comp.id] or nil
 
     local visiting = {}
     local function eval(step)
@@ -316,14 +382,16 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
                 status = S.MISSED
             else
                 local blocked, waiting = false, false
+                local function depend(depStep)
+                    local ds = eval(depStep)
+                    if ds == S.MISSED then blocked = true
+                    elseif not SATISFIED[ds] then waiting = true end
+                end
                 for _, dep in ipairs(step.after or {}) do
                     local depStep = Guides.StepById[dep]
-                    if depStep then
-                        local ds = eval(depStep)
-                        if ds == S.MISSED then blocked = true
-                        elseif not SATISFIED[ds] then waiting = true end
-                    end
+                    if depStep then depend(depStep) end
                 end
+                if joinStep and joinStep ~= step and Guides.NeedsJoin(step) then depend(joinStep) end
                 if blocked then
                     status = S.MISSED
                 elseif step.act > prog.act then

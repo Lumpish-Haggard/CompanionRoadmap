@@ -30,6 +30,7 @@ CR.Guides.Register {
         { act = 1, "Spells, ranged attacks, thrown items, surfaces (fire, acid) and damage-over-time (bleeding, burning, poison) still KILL her." },
         { act = 1, "Once she is down, nobody may hit her again - stop area spells near her body." },
         { act = 2, "Rescue her on your first visit to Moonrise Towers - going down into the Mind Flayer Colony leaves her behind for good." },
+        { act = 2, "After Ketheric is defeated, do not insist that she leave - she goes for good." },
         { act = 2, "She does not share: reaching her partner threshold ends every other romance automatically." },
     },
     romanceNotes = {

@@ -17,7 +17,8 @@
     "HAL_A1_RESCUE": "N",
     "HAL_A1_GROVE": "P",
     "HAL_A3_ROMANCE": "U",
-    "MIN_A1_KO": "N",
+    "MIN_A1_KO": "C",
+    "MIN_A1_RAID": "C",
     "MIN_A2_ROMANCE": "U",
     "MINSC_A3_KO": "U",
     "JAH_A2_RECRUIT": "U"

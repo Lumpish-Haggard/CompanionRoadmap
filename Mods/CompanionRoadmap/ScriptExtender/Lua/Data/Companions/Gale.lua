@@ -41,7 +41,7 @@ CR.Guides.Register {
         { act = 1, "The camp celebration can also start his romance." },
         "Act 2: after reaching the Moonrise Towers waypoint, interact with his projection at camp for the starry-sky night -> Partnered next morning.",
         { act = 2, "That night must happen before you go down into the Mind Flayer Colony." },
-        "Act 3: the Crown of Karsus conversation shapes the romance - telling him you love him as he is keeps him human.",
+        "Act 3: what you tell him about the Crown of Karsus decides his ending (a human life, or godhood) and shapes the romance. Telling him you love him as he is keeps him human.",
     },
 
     counters = {
@@ -161,9 +161,11 @@ CR.Guides.Register {
             where = "Stormshore Tabernacle, Lower City",
             todo = {
                 "Bring Gale to pray at the Tabernacle when Elminster asks.",
-                "Afterwards, in the rowboat talk, tell him he does not need godhood - promise the Crown to Mystra for a human ending.",
+                "Afterwards, in the rowboat talk, his ending is your choice:",
+                "Human ending: tell him he does not need godhood and promise the Crown to Mystra.",
+                "God ending: encourage him to take the Crown's power for himself.",
             },
-            avoid = { "Skipping Mystra entirely. Encouraging his hubris leads to the god-of-ambition ending." },
+            avoid = { "Skipping the Tabernacle entirely - Mystra never speaks to him." },
             rewards = "Decides his ending: professor in Waterdeep (and a proposal) or a would-be god.",
             done = { Q(GA, "PromiseMystra"), Q(GA, "RefusedMystra"), Q(GA, "DelayedMystra"), Q(GA, "KarsiteWeave") },
             fail = { Q(GA, "MystraBlocked") },

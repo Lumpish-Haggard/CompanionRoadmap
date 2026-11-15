@@ -18,6 +18,7 @@ This is a plan, not a promise. Order and scope will change with what players rep
 |---|---|---|
 | **1.0.1** | Fixes | Known issues below, and a one-click report file that makes bug reports useful |
 | **1.0.2** | Nothing missed | A completeness review of every way to lose a companion, and the gaps found by the first real-save report |
+| **1.0.3** | Requests | Choose where notices appear; story paths shown as equal choices; portraits that show when a companion is dead or gone |
 | **1.1** | Trust | The mod remembers choices as they happen; data cross-checked against the game automatically |
 | **1.2** | Camp and warnings | "Tonight at camp", warnings at the game's own "are you sure?" prompts, "do you have the item" |
 | **1.3** | Look | Overview page, mini tracker, icons, search and pins |

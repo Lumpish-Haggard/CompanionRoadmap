@@ -206,10 +206,17 @@ def check_portraits(errors, warnings, cache):
         return os.path.relpath(p, ROOT)
 
     theme = os.path.join(LUA_DIR, "UI", "Theme.lua")
-    block = re.search(r'T\.Portraits = \{(.*?)\n\}', open(theme, encoding="utf-8").read(), re.S)
+    theme_src = open(theme, encoding="utf-8").read()
+    block = re.search(r'T\.Portraits = \{(.*?)\n\}', theme_src, re.S)
     wanted = dict(re.findall(r'(\w+)\s*=\s*"([0-9a-f-]{36})"', block.group(1))) if block else {}
     if not wanted:
         return
+    # optional pictures shown while a companion is dead
+    dead_block = re.search(r'T\.PortraitsDead = \{(.*?)\n\}', theme_src, re.S)
+    dead = dict(re.findall(r'(\w+)\s*=\s*"([0-9a-f-]{36})"', dead_block.group(1))) if dead_block else {}
+    for name in sorted(set(dead) - set(wanted)):
+        errors.append(f"{rel(theme)}: T.PortraitsDead has '{name}', which has no normal portrait")
+    all_used = {**{k: v for k, v in wanted.items()}, **{k + " (dead)": v for k, v in dead.items()}}
     if not os.path.exists(TEXTURE_BANK):
         errors.append(f"{rel(theme)}: T.Portraits is defined but {rel(TEXTURE_BANK)} does not exist")
         return
@@ -229,11 +236,11 @@ def check_portraits(errors, warnings, cache):
         if attrs["ID"] in bank:
             errors.append(f"{rel(TEXTURE_BANK)}: duplicate resource ID {attrs['ID']}")
         bank[attrs["ID"]] = attrs.get("SourceFile") or ""
-    for name, guid in sorted(wanted.items()):
+    for name, guid in sorted(all_used.items()):
         if guid not in bank:
             errors.append(f"{rel(theme)}: portrait '{name}' uses {guid}, which is not declared in {rel(TEXTURE_BANK)}")
-    for guid in sorted(set(bank) - set(wanted.values())):
-        warnings.append(f"{rel(TEXTURE_BANK)}: resource {guid} is not used by T.Portraits")
+    for guid in sorted(set(bank) - set(all_used.values())):
+        warnings.append(f"{rel(TEXTURE_BANK)}: resource {guid} is not used by T.Portraits or T.PortraitsDead")
 
     order = re.search(r'Guides\.Order = \{(.*?)\}', open(os.path.join(DATA_DIR, "CompanionGuides.lua"), encoding="utf-8").read(), re.S)
     for comp in re.findall(r'"(\w+)"', order.group(1)) if order else []:
@@ -265,6 +272,7 @@ def check_metadata(errors):
 
     bp_path = os.path.join(MOD_DIR, "MCM_blueprint.json")
     ids = set()
+    enum_choices = {}
     try:
         bp = json.load(open(bp_path, encoding="utf-8-sig"))
 
@@ -272,6 +280,10 @@ def check_metadata(errors):
             if isinstance(node, dict):
                 if "Id" in node and "Type" in node:
                     ids.add(node["Id"])
+                    if node["Type"] == "enum":
+                        enum_choices[node["Id"]] = list((node.get("Options") or {}).get("Choices") or [])
+                        if node.get("Default") not in enum_choices[node["Id"]]:
+                            errors.append(f"{rel(bp_path)}: enum '{node['Id']}' has a default that is not one of its choices")
                 for v in node.values():
                     walk(v)
             elif isinstance(node, list):
@@ -288,6 +300,16 @@ def check_metadata(errors):
         wanted |= set(re.findall(r'=\s*"(\w+)"', block.group(1)))
     for missing in sorted(wanted - ids):
         errors.append(f"{rel(bp_path)}: setting '{missing}' is used by the Lua code but missing from the blueprint")
+    # MCM stores the chosen text, and Settings.lua maps it back by position: the lists must be identical
+    settings_src = open(settings_lua, encoding="utf-8").read()
+    for lua_list, mcm_id in (("SpoilerChoices", "spoilers"), ("OpacityChoices", "window_opacity"),
+                             ("ToastChoices", "notify_position")):
+        m = re.search(r'Set\.' + lua_list + r'\s*=\s*\{(.*?)\}', settings_src, re.S)
+        lua_choices = re.findall(r'"([^"]*)"', m.group(1)) if m else None
+        if lua_choices is None:
+            errors.append(f"{rel(settings_lua)}: Set.{lua_list} not found")
+        elif mcm_id in enum_choices and enum_choices[mcm_id] != lua_choices:
+            errors.append(f"{rel(bp_path)}: the choices of '{mcm_id}' differ from Set.{lua_list} in {rel(settings_lua)}")
 
     meta_path = os.path.join(MOD_DIR, "meta.lsx")
     try:

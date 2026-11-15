@@ -128,6 +128,46 @@
               "Type": "checkbox",
               "Default": false,
               "Description": "By default only romance and important steps produce notifications."
+            },
+            {
+              "Id": "notify_position",
+              "Name": "Where notices appear",
+              "Type": "enum",
+              "Default": "Right, under the minimap",
+              "Description": "Where the roadmap's notices show up on screen. A sample notice appears when you change it. Choose Custom to place them with the two sliders below.",
+              "Options": {
+                "Choices": [
+                  "Right, under the minimap",
+                  "Right, middle",
+                  "Right, bottom",
+                  "Top centre",
+                  "Left, middle",
+                  "Bottom centre, above the hotbar",
+                  "Custom (use the sliders)"
+                ]
+              }
+            },
+            {
+              "Id": "notify_x",
+              "Name": "Custom position: across",
+              "Type": "slider_int",
+              "Default": 100,
+              "Description": "Only used with the Custom position. 0 puts notices against the left edge of the screen, 100 against the right edge.",
+              "Options": {
+                "Min": 0,
+                "Max": 100
+              }
+            },
+            {
+              "Id": "notify_y",
+              "Name": "Custom position: down",
+              "Type": "slider_int",
+              "Default": 30,
+              "Description": "Only used with the Custom position. 0 puts notices at the top of the screen, 100 at the bottom.",
+              "Options": {
+                "Min": 0,
+                "Max": 100
+              }
             }
           ]
         }

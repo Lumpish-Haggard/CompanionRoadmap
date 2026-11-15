@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows [Kee
 
 Nothing yet.
 
+## [1.0.3] - 2026-11-15
+
+### Added
+- **Choose where notices appear** (requested on Nexus). *Options > Notifications > Where notices appear*: right under the minimap (as before), right middle, right bottom, top centre, left middle, bottom centre above the hotbar, or anywhere with two sliders. Changing it shows a sample notice; *Show a test notice* does too. Also on the MCM page.
+- **Paths are equal choices.** Where a companion's story splits, the paths are now shown side by side with a new status, `CHOOSE`, instead of one being `NEXT` and the other `OPTIONAL`. Each path lists what it changes under a neutral *What it changes*, rather than under *Avoid*. "Before you move on" lists the decision once, with every path. Minthara's knockout and the raid on the Grove are the first such paths.
+
+### Fixed
+- **Minthara's evil path read as a dead end.** The romance notes said the night after the raid "does not start a relationship", which suggested she could no longer join. She can: on both paths she turns up at Moonrise Towers in Act 2 and joins once freed (confirmed in the game's story scripts), and her romance can start on either path.
+- **Portraits did not show a companion's state.** Lae'zel's picture was a Photo Mode sticker of her dead, even while she was alive, and Astarion's has heart eyes; the faint fade on lost companions was easy to miss. Lae'zel now has a neutral picture, and her "dead" sticker appears only while she is dead. Every portrait turns red while its companion is dead but can be revived, and dark and faded once they are gone for good.
+- Gale's ending is a choice, not a mistake: the Mystra step now describes both the human and the god ending instead of listing his ambition under *Avoid*.
+
+### Changed
+- For guide writers: `changes` on a step, and `alt` groups now show as `CHOOSE` (see [docs/DATA_FORMAT.md](docs/DATA_FORMAT.md)). The validator checks that MCM's choice lists match the code's.
+
 ## [1.0.2] - 2026-11-15
 
 "Nothing missed": a completeness review of every companion. What was reviewed, and what each point was confirmed against, is in [docs/COVERAGE.md](docs/COVERAGE.md).
@@ -85,7 +99,8 @@ First public release. A full rebuild of an earlier prototype that could not run 
   - Wyll's romance only starts at the Tiefling party and needs Duke Ravengard alive; rescuing Mizora is what keeps Wyll himself alive.
   - Gale leaves only if you refuse the first magic item.
 
-[Unreleased]: ../../compare/v1.0.2...HEAD
+[Unreleased]: ../../compare/v1.0.3...HEAD
+[1.0.3]: ../../releases/tag/v1.0.3
 [1.0.2]: ../../releases/tag/v1.0.2
 [1.0.1]: ../../releases/tag/v1.0.1
 [1.0.0]: ../../releases/tag/v1.0.0

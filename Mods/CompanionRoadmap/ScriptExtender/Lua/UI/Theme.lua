@@ -34,17 +34,31 @@ T.BarTrack = { 0.84, 0.71, 0.48, 0.14 }    -- empty part of a progress bar (visi
 -- Companion pictures: texture resources declared in
 -- Public/CompanionRoadmap/Content/UI/[PAK]_UI/_merged.lsx. Each one points at a
 -- Photo Mode sticker that ships with the game; the mod contains no art.
+-- The pictures do not change with the companion's state (the window tints them
+-- instead), so none of them may look dead, hurt or in love by itself.
 T.Portraits = {
     Shadowheart = "0ce9a128-57d6-4f4e-83d6-fe906dbf7fdb",
     Minthara = "bdf80ba4-8588-4da9-a9f6-36234531351f",
     Karlach = "9a9e58b9-0cef-456c-b144-c0fdf72b0e7f",
-    Laezel = "578f10d3-8627-4f69-bdc0-5188b968db1f",
+    Laezel = "f1402f27-146a-4547-a180-da04899ce7e2",          -- "Laezel Alien" emoji
     Astarion = "88bd30e6-e429-49f3-8563-0b2ad988f38d",
     Gale = "8ff0524f-c546-4575-a4c3-90b2be611ecd",
     Wyll = "d0a076ad-e9d5-4b4f-b60f-f3b43bd70599",
     Halsin = "bd88c2d7-ecb0-4f35-80ce-37dfc2aee807",
     Jaheira = "1640ca1a-5238-45ab-a9f3-a6888c453d1f",
     Minsc = "586db842-cbd1-4045-8a2f-4bd73a1689e2",
+}
+
+-- Shown instead while the companion is dead, where the game has such a sticker.
+T.PortraitsDead = {
+    Laezel = "578f10d3-8627-4f69-bdc0-5188b968db1f",          -- "LaeZel_Dead"
+}
+
+-- Picture tints. IMGUI multiplies the texture by these.
+T.PortraitTint = {
+    normal = { 1, 1, 1, 1 },
+    dead = { 1.0, 0.42, 0.38, 0.9 },     -- dead, can still be revived: red
+    lost = { 0.45, 0.45, 0.45, 0.4 },    -- gone for this playthrough: dark and faded
 }
 
 -- Latin-1 punctuation used as ornaments
@@ -58,6 +72,7 @@ T.CROSS = "\u{D7}"
 -- of the step title (finished or unreachable steps recede).
 T.Status = {
     N = { label = "NEXT",     color = T.C.gold,  title = T.C.text },
+    C = { label = "CHOOSE",   color = T.C.gold,  title = T.C.text },
     A = { label = "TO DO",    color = T.C.text,  title = T.C.text },
     I = { label = "NOT SEEN", color = T.C.warn,  title = T.C.text },
     P = { label = "WAITING",  color = T.C.dim,   title = T.C.dim },
@@ -72,10 +87,11 @@ T.Status = {
 }
 
 -- Order used by the status legend
-T.StatusOrder = { "N", "A", "OPT", "I", "P", "U", "D", "O", "M", "X" }
+T.StatusOrder = { "N", "C", "A", "OPT", "I", "P", "U", "D", "O", "M", "X" }
 
 T.StatusHelp = {
     N = "The next thing to do for this companion.",
+    C = "One of several paths, all open. Take the one you want; the others close once you do.",
     A = "Can be done now.",
     OPT = "Can be done now, but skipping it costs you nothing important.",
     I = "A step from an earlier act that the game never recorded. It may still be possible, or you did it in a way "

@@ -161,6 +161,10 @@ local CLASSES = {
     Checkbox = { base = "StyledRenderable", props = { "Checked", "OnChange" } },
     Combo = { base = "StyledRenderable", props = { "Options", "SelectedIndex", "Flags", "OnChange" }, flags = { FLAGS.Combo } },
     ProgressBar = { base = "StyledRenderable", props = { "Value", "Size", "Overlay" } },
+    -- BG3SE extui::SliderInt: Value/Min/Max are glm::ivec4 (Lua: { n, n, n, n });
+    -- OnChange(element, ivec4)
+    SliderInt = { base = "StyledRenderable",
+        props = { "Value", "Min", "Max", "Components", "Flags", "Vertical", "VerticalSize", "OnChange" } },
     Image = { base = "StyledRenderable", props = { "ImageData", "Border", "Tint" } },
     Table = { base = "TreeParent",
         props = { "Columns", "Flags", "FreezeRows", "FreezeCols", "ShowHeader", "AngledHeader", "OptimizedDraw",
@@ -178,12 +182,12 @@ local ADD_TYPES = {
     AddBulletText = "BulletText", AddSeparatorText = "SeparatorText", AddSpacing = "Spacing",
     AddNewLine = "NewLine", AddSeparator = "Separator", AddCheckbox = "Checkbox", AddCombo = "Combo",
     AddProgressBar = "ProgressBar", AddTabItem = "TabItem", AddTable = "Table", AddRow = "TableRow",
-    AddCell = "TableCell", AddPopup = "Popup", AddImage = "Image",
+    AddCell = "TableCell", AddPopup = "Popup", AddImage = "Image", AddSliderInt = "SliderInt",
 }
 -- element types created without a label argument
 local NO_LABEL = set { "Spacing", "NewLine", "Separator", "ProgressBar", "TableRow", "TableCell", "Image" }
 local INTERACTIVE = set { "Button", "Checkbox", "Selectable", "Tree", "CollapsingHeader", "TabItem", "Combo",
-    "ChildWindow", "TabBar", "Table", "Popup" }
+    "ChildWindow", "TabBar", "Table", "Popup", "SliderInt" }
 
 -- resolve inherited members once
 local RESOLVED = {}
@@ -310,6 +314,8 @@ local function method(e, name)
             if type(pos) ~= "table" or #pos ~= 2 then fail("SetPos: expected {x,y}", 2) end
             if cond ~= nil and not GUI_COND[cond] then fail("SetPos: bad GuiCond " .. tostring(cond), 2) end
             if pivot ~= nil and (type(pivot) ~= "table" or #pivot ~= 2) then fail("SetPos: bad pivot", 2) end
+            -- remembered for tests: where the window was last placed
+            rawset(self, "__pos", { pos = pos, cond = cond, pivot = pivot or { 0, 0 } })
         end
     end
     if name == "SetSize" then
@@ -347,7 +353,7 @@ local function method(e, name)
     end
     local addType = ADD_TYPES[name]
     if addType then
-        return function(self, label, a)
+        return function(self, label, a, b, c)
             local needsLabel = not NO_LABEL[addType]
             if needsLabel and type(label) ~= "string" then fail(name .. ": label must be a string", 2) end
             if addType == "Table" and (math.type(a) ~= "integer" or a < 1) then
@@ -376,6 +382,16 @@ local function method(e, name)
             if addType == "ProgressBar" then child.__values.Value = 0 end
             if addType == "Combo" then child.__values.Options = {} child.__values.SelectedIndex = 0 end
             if addType == "Table" then child.__values.Columns = a child.__values.ColumnDefs = {} end
+            if addType == "SliderInt" then
+                -- AddSliderInt(label, value?, min?, max?): optional ints
+                for _, v in ipairs({ a, b, c }) do
+                    if v ~= nil and math.type(v) ~= "integer" then fail("AddSliderInt: value, min and max must be integers", 2) end
+                end
+                child.__values.Value = { a or 0, 0, 0, 0 }
+                child.__values.Min = { b or 0, 0, 0, 0 }
+                child.__values.Max = { c or 1, 0, 0, 0 }
+                child.__values.Components = 1
+            end
             return child
         end
     end
@@ -412,7 +428,12 @@ Element.__newindex = function(e, key, value)
     if (key == "Size" or key == "PositionOffset") and (type(value) ~= "table" or #value ~= 2) then
         fail(key .. " expects {x,y}", 2)
     end
-    if (key == "Value" or key == "TextWrapPos" or key == "ItemWidth") and type(value) ~= "number" then
+    if e.__type == "SliderInt" and (key == "Value" or key == "Min" or key == "Max") then
+        if type(value) ~= "table" or #value ~= 4 then fail("SliderInt." .. key .. " expects {n, n, n, n}", 2) end
+        for _, v in ipairs(value) do
+            if math.type(v) ~= "integer" then fail("SliderInt." .. key .. " expects integers", 2) end
+        end
+    elseif (key == "Value" or key == "TextWrapPos" or key == "ItemWidth") and type(value) ~= "number" then
         fail(key .. " expects a number", 2)
     end
     e.__values[key] = value

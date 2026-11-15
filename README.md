@@ -40,10 +40,11 @@ Steps tick themselves off as you play. Everything is detected from the game's ow
 - **Live statuses**: Next, To do, Not seen, Waiting, Later, Done, Checked, Missed, N/A, updated within half a second of the game changing.
 - **Looks like it belongs in the game**: a quiet dark panel in BG3's own Quadraat typeface, gold headings, and colour only where it means something.
 - **Points of no return**: the Shadowfell (Act 1 locks), the Mind Flayer Colony, leaving for Baldur's Gate, the Lower City and the final battle. Each comes with a short list of what you would lose.
-- **Notifications** when a tracked step is completed, or when an important one is missed.
+- **Notifications** when a tracked step is completed, or when an important one is missed, wherever you want them on screen.
+- **Every path is yours to choose**: where a companion's story splits (Minthara: knock her out, or raid the Grove with her), the paths are shown side by side as equals, with what each one changes.
 - **Manual check-offs** for anything the game does not record or another mod changes. They are saved inside each savegame.
 - **Spoiler control**: the roadmap asks once how much it may reveal about later acts (everything, step titles only, or nothing). Until you choose, later acts stay hidden, including golden rules and romance notes.
-- **Companion portraits** from the game's own Photo Mode stickers (can be switched off).
+- **Companion portraits** from the game's own Photo Mode stickers (can be switched off). They show the companion's state: red while dead but revivable, faded once gone for good.
 - **Mod Configuration Menu** support: a settings page, a rebindable hotkey and an "Open roadmap" button. MCM is optional.
 - **Multiplayer and origin aware**: each player sees their own approval and romance; playing as an origin marks that companion's recruitment and romance as not applicable.
 
@@ -85,6 +86,7 @@ To uninstall, disable or remove it. Saves made with it still load; the game only
 | Status | Meaning |
 |---|---|
 | `NEXT` | The next thing to do for this companion |
+| `CHOOSE` | One of several paths, all open (for example Minthara: knock her out, or raid the Grove with her). Take the one you want; the others close once you do |
 | `TO DO` | Can be done now |
 | `OPTIONAL` | Can be done now, but skipping it costs you nothing important |
 | `NOT SEEN` | From an earlier act and not detected. It may still be possible, or the game does not record it, so check it off if you did it. |
@@ -97,7 +99,7 @@ To uninstall, disable or remove it. Saves made with it still load; the game only
 
 ### Options
 
-In the *Options* tab: hide finished steps · romance steps only · spoiler level · show how each step is tracked · companion portraits · notifications (romance and important steps, or every step) · window opacity · hotkey · Esc closes the window · clear all check-offs · create a report file. With MCM installed, the same options appear on the MCM page and stay in sync.
+In the *Options* tab: hide finished steps · romance steps only · spoiler level · show how each step is tracked · companion portraits · notifications (romance and important steps, or every step) · where notices appear (presets, or anywhere with two sliders; *Show a test notice* previews it) · window opacity · hotkey · Esc closes the window · clear all check-offs · create a report file. With MCM installed, the same options appear on the MCM page and stay in sync.
 
 ### Console commands
 

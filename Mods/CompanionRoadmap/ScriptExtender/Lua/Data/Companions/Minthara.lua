@@ -1,8 +1,11 @@
 -- =============================================================================
 -- Minthara Baenre - drow paladin of the Absolute
--- Good-path recruitment (knock her out in Act 1) and the evil-path raid are both
--- tracked. Sources: Act1_GOB_DrowCommander / Act2_MOO_MintharaFate goals,
--- MOO_MintharaFate journal, flags (Patch 8), bg3.wiki.
+-- Two equal paths in Act 1: knock her out (good) or raid the Grove with her
+-- (evil). Both lead to the same Act 2 recruitment: Act2_MOO_MintharaFate puts her
+-- on trial at Moonrise whenever she is not permanently dead, without looking at
+-- how Act 1 went. Sources: Act1_GOB_DrowCommander / Act2_MOO_MintharaFate /
+-- Act1_CAMP_GoblinHuntCelebration goals, MOO_MintharaFate journal, flags
+-- (Patch 8), bg3.wiki.
 -- =============================================================================
 local C = CR.Cond
 local Q, P, G, F = C.Q, C.P, C.G, C.F
@@ -34,7 +37,8 @@ CR.Guides.Register {
         { act = 2, "She does not share: reaching her partner threshold ends every other romance automatically." },
     },
     romanceNotes = {
-        { act = 1, "Evil path only: a one-night stand at the goblin party (does not start a relationship)." },
+        { act = 1, "Both Act 1 paths lead to her joining you in Act 2, and her romance can begin on either." },
+        { act = 1, "Evil path: after the raid she can spend the night with you at the goblins' celebration. That night does not start the romance, and it does not close it either." },
         "Act 2/3: after her rescue, at 31+ approval she opens her mind to you before a long rest - imagine her as anything but 'a monster'.",
         { act = 2, "Partnered automatically (and exclusively) at 50+ approval, or when Ketheric falls if you are only dating others." },
         "Act 3: entering the sealed Undercity Ruins with 40+ approval triggers her deepest confession.",
@@ -49,9 +53,9 @@ CR.Guides.Register {
             where = "Goblin Camp - Shattered Sanctum, war room upstairs",
             todo = {
                 "Talk to her as a 'True Soul'. She asks where the druid grove is.",
-                "Good path: refuse or dodge the question. Evil path: tell her and agree to the raid.",
+                "Your answer starts one of her two paths (both below): refuse or dodge the question for the good path, tell her for the evil path.",
+                "Either way she can join you in Act 2.",
             },
-            avoid = { "Agreeing to raid the Grove (unless you want the evil path): Karlach and Wyll leave, the tieflings and druids die." },
             done = { F("GOB_DrowCommander_HasMet", "any"), C.KO(), G("NIGHT_GoblinHunt_RaiderCelebration") },
             closes = "act1",
         },
@@ -72,21 +76,29 @@ CR.Guides.Register {
                 "Fire, acid or other surfaces, bleeding, burning or poison ticking while she is low - they kill.",
                 "Hitting or blasting her body after she is knocked out - that finishes her off.",
             },
-            rewards = "She is taken to Moonrise Towers and can be recruited in Act 2.",
+            changes = {
+                "You still have to defeat the other goblin leaders to save the Grove.",
+                "Karlach, Wyll and Halsin can all stay with you.",
+            },
+            rewards = "She is taken to Moonrise Towers, and you can free and recruit her in Act 2.",
             done = { C.KO() },
             fail = { G("GLO_DrowCommander_State_Dead"), C.Dead() },
             closes = "act1",
         },
         {
-            id = "MIN_A1_RAID", act = 1, kind = "choice", alt = "MIN_ROUTE", optional = true,
+            id = "MIN_A1_RAID", act = 1, kind = "choice", critical = true, alt = "MIN_ROUTE",
             title = "Evil path: raid the Grove with her",
             where = "Shattered Sanctum, then the Emerald Grove",
             todo = {
                 "Tell her where the Grove is and join the raid after the next long rest.",
                 "Celebrate with the goblins at camp; she offers a night together and later gives you her Spider's Lyre.",
             },
-            avoid = { "This path permanently loses Karlach, Wyll and Halsin (and angers Gale and Shadowheart)." },
-            rewards = "Minthara is waiting at Moonrise Towers in Act 2.",
+            changes = {
+                "The tieflings and the druids of the Grove are killed, and Halsin is lost as a companion.",
+                "Karlach and Wyll leave you for good at the goblins' celebration.",
+                "Gale leaves too, unless you talk him round when he confronts you there.",
+            },
+            rewards = "Minthara survives and turns up at Moonrise Towers in Act 2. From there her path is the same as on the good path: free her and she joins you.",
             done = { G("NIGHT_GoblinHunt_RaiderCelebration") },
             closes = "act1",
         },
@@ -97,6 +109,7 @@ CR.Guides.Register {
             title = "Moonrise Towers: her trial",
             where = "Moonrise Towers, main hall (first visit)",
             todo = {
+                "On either Act 1 path she ends up here.",
                 "Enter Moonrise and watch Ketheric Thorm judge her for losing the artefact.",
                 "Speaking up for her is good roleplay, but Ketheric condemns her no matter what - follow her to the prison.",
             },

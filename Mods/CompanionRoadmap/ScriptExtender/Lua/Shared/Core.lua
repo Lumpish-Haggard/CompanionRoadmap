@@ -10,7 +10,7 @@
 CR = CR or {}
 
 CR.ModName = "Companion & Romance Roadmap"
-CR.Version = "1.0.2"
+CR.Version = "1.0.3"
 CR.Protocol = 1                                       -- bump when the net payload changes
 CR.NULL = "NULL_00000000-0000-0000-0000-000000000000" -- Osiris NULL GUID (global flags, "any player")
 CR.Verbose = false                                    -- toggled with the console command "!roadmap debug"

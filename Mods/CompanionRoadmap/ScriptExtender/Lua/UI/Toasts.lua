@@ -1,9 +1,10 @@
 -- =============================================================================
 -- UI/Toasts.lua
--- Small notices on the right edge, below the minimap:
+-- Small notices, by default on the right edge below the minimap:
 --     COMPANION ROADMAP
 --     DONE    Shadowheart  .  Romance: wine by the waterfall
--- Shown when the server reports a step that just became done or missed.
+-- Shown when the server reports a step that just became done or missed. Where
+-- they appear is a setting (toastPosition, and toastX / toastY for "custom").
 -- =============================================================================
 
 CR.Toasts = CR.Toasts or {}
@@ -13,6 +14,34 @@ local T = CR.Theme
 local MAX_LINES = 4
 local DURATION_MS = 8000
 local WRAP = 600            -- scaled by the extender
+local MARGIN = 24           -- distance from the screen edge, in pixels
+
+-- Preset positions: where the anchor sits (fraction of the screen) and which point
+-- of the notice is placed there (pivot: 0 = left/top edge, 1 = right/bottom edge).
+Toasts.Presets = {
+    ["right-top"]     = { x = 1.0, y = 0.30, px = 1.0, py = 0.0 },   -- under the minimap (the original place)
+    ["right-middle"]  = { x = 1.0, y = 0.50, px = 1.0, py = 0.5 },
+    ["right-bottom"]  = { x = 1.0, y = 0.80, px = 1.0, py = 1.0 },
+    ["top-centre"]    = { x = 0.5, y = 0.12, px = 0.5, py = 0.0 },   -- below the combat turn order
+    ["left-middle"]   = { x = 0.0, y = 0.50, px = 0.0, py = 0.5 },
+    ["bottom-centre"] = { x = 0.5, y = 0.78, px = 0.5, py = 1.0 },   -- above the hotbar
+}
+
+--- Where the notice goes: screen position in pixels and the pivot.
+function Toasts.Placement(vw, vh)
+    local Set = CR.Settings
+    local key = Set.Get("toastPosition")
+    local p = Toasts.Presets[key]
+    if not p then
+        -- custom: the point and the pivot move together, so 0 hugs one edge and 100 the other
+        local x = (tonumber(Set.Get("toastX")) or 100) / 100
+        local y = (tonumber(Set.Get("toastY")) or 30) / 100
+        p = { x = x, y = y, px = x, py = y }
+    end
+    local px = MARGIN + (vw - 2 * MARGIN) * p.x
+    local py = MARGIN + (vh - 2 * MARGIN) * p.y
+    return { math.floor(px), math.floor(py) }, { p.px, p.py }
+end
 
 Toasts.win = nil
 Toasts.lines = {}
@@ -66,9 +95,14 @@ local function render()
         T.Show(line.text, item ~= nil)
     end
     local vw, vh = T.Viewport()
-    -- right edge, below the minimap
-    pcall(function() win:SetPos({ vw - 24, math.floor(vh * 0.30) }, "Always", { 1.0, 0.0 }) end)
+    local pos, pivot = Toasts.Placement(vw, vh)
+    pcall(function() win:SetPos(pos, "Always", pivot) end)
     win.Open = n > 0
+end
+
+--- Moves notices that are on screen right now (after the position setting changed).
+function Toasts.Reposition()
+    if Toasts.win and #Toasts.queue > 0 then render() end
 end
 
 local function scheduleHide()
@@ -100,6 +134,24 @@ function Toasts.Push(items)
         end
     end
     if not added then return end
+    while #Toasts.queue > MAX_LINES do table.remove(Toasts.queue, 1) end
+    if build() then
+        render()
+        scheduleHide()
+    end
+end
+
+--- A sample notice, so the player can see where notices will appear. Shown even
+--- when notices are switched off: it is an explicit request.
+function Toasts.Preview()
+    local text = "Notices will appear here."
+    for _, item in ipairs(Toasts.queue) do
+        if item.preview then
+            if build() then render() scheduleHide() end
+            return
+        end
+    end
+    table.insert(Toasts.queue, { label = "PREVIEW", color = T.C.gold, text = text, preview = true })
     while #Toasts.queue > MAX_LINES do table.remove(Toasts.queue, 1) end
     if build() then
         render()

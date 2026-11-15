@@ -15,11 +15,18 @@ Set.SpoilerChoices = { "Show everything", "Titles only for future acts", "Hide f
 Set.SpoilerKeys = { "full", "titles", "hide" }
 Set.OpacityChoices = { "100%", "95%", "90%", "85%", "80%", "70%" }
 Set.OpacityValues = { 1.0, 0.95, 0.90, 0.85, 0.80, 0.70 }
+-- Where notices appear. "custom" uses toastX / toastY (0-100, percent of the screen).
+Set.ToastChoices = { "Right, under the minimap", "Right, middle", "Right, bottom", "Top centre",
+    "Left, middle", "Bottom centre, above the hotbar", "Custom (use the sliders)" }
+Set.ToastKeys = { "right-top", "right-middle", "right-bottom", "top-centre", "left-middle", "bottom-centre", "custom" }
 
 Set.Defaults = {
     hotkey = { key = "F7", mods = {} },   -- only used when MCM is not installed
     notifications = true,                 -- toasts when a step is completed or missed
     notifyAll = false,                    -- false: only romance / critical steps
+    toastPosition = "right-top",          -- one of Set.ToastKeys
+    toastX = 100,                         -- custom position: 0 = left edge, 100 = right edge
+    toastY = 30,                          -- custom position: 0 = top, 100 = bottom
     spoilers = "full",                    -- "full" | "titles" | "hide"
     spoilersChosen = false,               -- the first-run question about spoilers was answered
     hideCompleted = false,
@@ -35,6 +42,9 @@ Set.Defaults = {
 local MCM_IDS = {
     notifications = "notifications",
     notifyAll = "notify_all",
+    toastPosition = "notify_position",
+    toastX = "notify_x",
+    toastY = "notify_y",
     spoilers = "spoilers",
     hideCompleted = "hide_completed",
     romanceOnly = "romance_only",
@@ -56,6 +66,13 @@ local function indexOf(list, value)
     return nil
 end
 
+--- A percentage setting as a whole number from 0 to 100 (anything else -> the default).
+local function percent(key, value)
+    local n = tonumber(value)
+    if not n then return Set.Defaults[key] end
+    return math.max(0, math.min(100, math.floor(n + 0.5)))
+end
+
 -- MCM stores the enum choice text; we store compact keys.
 local function fromMcm(key, value)
     if key == "spoilers" then
@@ -64,11 +81,22 @@ local function fromMcm(key, value)
     elseif key == "opacity" then
         local i = indexOf(Set.OpacityChoices, value)
         return i and Set.OpacityValues[i] or Set.Defaults.opacity
+    elseif key == "toastPosition" then
+        local i = indexOf(Set.ToastChoices, value)
+        return i and Set.ToastKeys[i] or Set.Defaults.toastPosition
+    elseif key == "toastX" or key == "toastY" then
+        return percent(key, value)
     end
     return value
 end
 
 local function toMcm(key, value)
+    if key == "toastPosition" then
+        local i = indexOf(Set.ToastKeys, value)
+        return Set.ToastChoices[i or 1]
+    elseif key == "toastX" or key == "toastY" then
+        return percent(key, value)
+    end
     if key == "spoilers" then
         local i = indexOf(Set.SpoilerKeys, value)
         return Set.SpoilerChoices[i or 1]
@@ -105,6 +133,9 @@ function Set.Load()
     end
     if type(values.hotkey.mods) ~= "table" then values.hotkey.mods = {} end
     if not indexOf(Set.SpoilerKeys, values.spoilers) then values.spoilers = Set.Defaults.spoilers end
+    if not indexOf(Set.ToastKeys, values.toastPosition) then values.toastPosition = Set.Defaults.toastPosition end
+    values.toastX = percent("toastX", values.toastX)
+    values.toastY = percent("toastY", values.toastY)
     Set.values = values
 end
 

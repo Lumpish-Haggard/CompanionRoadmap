@@ -44,7 +44,9 @@ local ACTS = {
 }
 
 local DONE_LIKE = { D = true, O = true }
-local OPEN_LIKE = { N = true, A = true, P = true, I = true }
+local OPEN_LIKE = { N = true, C = true, A = true, P = true, I = true }
+-- statuses that mean "do this now": highlighted, opened once, and they make an act open
+local ACT_NOW = { N = true, C = true }
 
 -- Sizes are scaled by the extender (window Scaling = "Scaled").
 local SIDEBAR_WIDTH = 300
@@ -54,8 +56,6 @@ local PORTRAIT_SIDE = 46
 local PORTRAIT_PAGE = 84
 -- Nudges small text down so it shares a baseline with body text next to it.
 local BASELINE_NUDGE = { 0, 3 }
-local FULL_TINT = { 1, 1, 1, 1 }
-local LOST_TINT = { 1, 1, 1, 0.35 }
 
 -- -----------------------------------------------------------------------------
 -- Helpers
@@ -110,6 +110,12 @@ local function describeEvidence(comp, c, step, status, evidence)
     elseif status == S.MISSED and step.closes then
         local d = Guides.DeadlineById[step.closes]
         return "Its window closed: " .. (d and d.title or step.closes)
+    elseif status == S.CHOICE and step.alt then
+        local others = {}
+        for _, other in ipairs(Guides.AltGroups[step.alt] or {}) do
+            if other ~= step then table.insert(others, other.title) end
+        end
+        if #others > 0 then return "Or instead: " .. table.concat(others, "  /  ") end
     end
     if SELF_EXPLAINING[status] then return "" end
     return T.StatusHelp[status] or ""
@@ -118,6 +124,7 @@ end
 local function evidenceColor(status)
     if status == S.MISSED then return T.C.bad end
     if status == S.INCOMPLETE then return T.C.warn end
+    if status == S.CHOICE then return T.C.dim end
     return T.C.faint
 end
 
@@ -197,6 +204,34 @@ local function addCombo(parent, label, choices, current, onPick)
     return combo
 end
 
+--- A 0-100 slider for a percentage setting. The extender passes the value as a
+--- four-component vector ({ n, 0, 0, 0 }).
+local function addPercentSlider(parent, label, key)
+    local slider = parent:AddSliderInt(label, math.floor(tonumber(Set.Get(key)) or 0), 0, 100)
+    T.SetProp(slider, "ItemWidth", 320)
+    slider.OnChange = function(_, value)
+        local v = type(value) == "table" and value[1] or value
+        v = math.floor(tonumber(v) or 0)
+        if v ~= Set.Get(key) then Set.Set(key, v) end
+    end
+    return slider
+end
+
+--- The custom position sliders are only useful with the "Custom" choice.
+local function refreshToastControls()
+    local h = UI.h
+    if not h.toastPos then return end
+    local custom = Set.Get("toastPosition") == "custom"
+    pcall(function() h.toastPos.SelectedIndex = (indexOf(Set.ToastKeys, Set.Get("toastPosition")) or 1) - 1 end)
+    for key, slider in pairs({ toastX = h.toastX, toastY = h.toastY }) do
+        T.Show(slider, custom)
+        local v = math.floor(tonumber(Set.Get(key)) or 0)
+        pcall(function()
+            if slider.Value[1] ~= v then slider.Value = { v, 0, 0, 0 } end
+        end)
+    end
+end
+
 --- Any choice (here, in the Options tab or in MCM) answers the first-run question.
 local function chooseSpoilers(key)
     Set.Set("spoilers", key)
@@ -235,6 +270,14 @@ local function buildOptions(parent)
     section(parent, "Notifications")
     addCheckbox(parent, "Show a notice when a step is completed or missed", "notifications")
     addCheckbox(parent, "Notify for every step, not only romance and important ones", "notifyAll")
+    UI.h.toastPos = addCombo(parent, "Where notices appear", Set.ToastChoices,
+        indexOf(Set.ToastKeys, Set.Get("toastPosition")), function(i) Set.Set("toastPosition", Set.ToastKeys[i]) end)
+    UI.h.toastX = addPercentSlider(parent, "Across (0 = left edge, 100 = right edge)", "toastX")
+    UI.h.toastY = addPercentSlider(parent, "Down (0 = top, 100 = bottom)", "toastY")
+    local test = parent:AddButton("Show a test notice")
+    T.SetFont(test, "small")
+    test.OnClick = function() if CR.Toasts then CR.Toasts.Preview() end end
+    refreshToastControls()
     parent:AddSpacing()
 
     section(parent, "Keys")
@@ -310,6 +353,31 @@ end
 -- Window
 -- -----------------------------------------------------------------------------
 
+--- A companion picture: the normal sticker, plus the "dead" one where the game has
+--- it. Both live in the same cell; only one is visible at a time.
+local function addPortrait(cell, comp, size)
+    local p = { normal = T.Image(cell, T.Portraits[comp.id], size) }
+    if T.PortraitsDead[comp.id] then
+        p.dead = T.Image(cell, T.PortraitsDead[comp.id], size)
+        T.Show(p.dead, false)
+    end
+    return p
+end
+
+--- Shows the companion's state on the picture: red while dead but revivable,
+--- dark and faded once they are gone for this playthrough.
+local function setPortrait(p, c)
+    if not p then return end
+    local dead = c and c.dead and not c.you
+    local useDead = dead and p.dead ~= nil
+    local tint = T.PortraitTint.normal
+    if c and c.lost then tint = T.PortraitTint.lost
+    elseif dead then tint = T.PortraitTint.dead end
+    T.Show(p.normal, not useDead)
+    if p.dead then T.Show(p.dead, useDead) end
+    T.SetProp(useDead and p.dead or p.normal, "Tint", tint)
+end
+
 --- (Re)builds the companion list. With portraits each entry is a table row, so a
 --- picture that fails to load leaves an empty cell instead of breaking the layout.
 local function buildSidebar()
@@ -335,7 +403,7 @@ local function buildSidebar()
         local holder
         if tbl then
             local row = tbl:AddRow()
-            entry.img = T.Image(row:AddCell(), T.Portraits[comp.id], PORTRAIT_SIDE)
+            entry.img = addPortrait(row:AddCell(), comp, PORTRAIT_SIDE)
             holder = row:AddCell()
         else
             holder = side:AddGroup("##grp_" .. comp.id)
@@ -460,6 +528,11 @@ local function buildStep(tbl, comp, step)
         T.Label(s.details, "Avoid", T.C.bad)
         for _, line in ipairs(step.avoid) do T.Bullet(s.details, line, T.C.text, T.CROSS, T.C.bad) end
     end
+    if #step.changes > 0 then
+        -- what a path costs or opens: information, not a warning
+        T.Label(s.details, "What it changes")
+        for _, line in ipairs(step.changes) do T.Bullet(s.details, line, T.C.text, T.BULLET, T.C.goldDim) end
+    end
     if step.rewards then
         T.Label(s.details, "Rewards")
         T.Text(s.details, step.rewards, T.C.text)
@@ -551,7 +624,7 @@ local function openActs(snap)
         if ready and key < current then
             for _, s in ipairs(a.steps) do
                 local st = stepResult(snap, s.step.id)
-                if st == S.NEXT or st == S.AVAILABLE then open = true break end
+                if ACT_NOW[st] or st == S.AVAILABLE then open = true break end
             end
         end
         pcall(function() a.header:SetOpen(open, "Always") end)
@@ -574,7 +647,7 @@ local function buildPage(comp)
         tbl:AddColumn("Portrait", "WidthFixed", PORTRAIT_PAGE + 6)
         tbl:AddColumn("Summary", "WidthStretch")
         local row = tbl:AddRow()
-        page.portrait = T.Image(row:AddCell(), portrait, PORTRAIT_PAGE)
+        page.portrait = addPortrait(row:AddCell(), comp, PORTRAIT_PAGE)
         head = row:AddCell()
     end
     T.Text(head, comp.name, T.C.gold, "title")
@@ -713,12 +786,12 @@ local function refreshSidebar(snap)
             T.SetProp(entry.sel, "Selected", comp.id == UI.selected)
             local hasNext = false
             for _, step in ipairs(comp.steps) do
-                if stepResult(snap, step.id) == S.NEXT then hasNext = true break end
+                if ACT_NOW[stepResult(snap, step.id)] then hasNext = true break end
             end
             local nameColor = hasNext and T.C.text or T.C.dim
             if comp.id == UI.selected then nameColor = T.C.gold end
             T.SetColor(entry.sel, nameColor)
-            if entry.img then T.SetProp(entry.img, "Tint", (c and c.lost) and LOST_TINT or FULL_TINT) end
+            setPortrait(entry.img, c)
         end
     end
 end
@@ -759,10 +832,28 @@ local function collectWarnings(snap)
                 local c = compSnapshot(snap, comp)
                 if c and not c.lost and not c.you then
                     local pursuing = c.rel == "dating" or c.rel == "partnered"
-                    for _, step in ipairs(comp.steps) do
-                        local st = stepResult(snap, step.id)
-                        if step.closes == d.id and OPEN_LIKE[st] then
-                            local item = { comp = comp, step = step, status = st }
+                    local altSeen = {}
+                    for _, listed in ipairs(comp.steps) do
+                        local st = stepResult(snap, listed.id)
+                        local item = { comp = comp, step = listed, status = st }
+                        if listed.alt and st == S.CHOICE then
+                            -- open paths are one decision: list the group once, with every path in it,
+                            -- and file it like its recruit path if it has one
+                            if altSeen[listed.alt] then
+                                item = nil
+                            else
+                                altSeen[listed.alt] = true
+                                item.choices = {}
+                                for _, other in ipairs(Guides.AltGroups[listed.alt] or {}) do
+                                    if stepResult(snap, other.id) == S.CHOICE then table.insert(item.choices, other) end
+                                end
+                                for _, other in ipairs(item.choices) do
+                                    if other.kind == "recruit" then item.step = other break end
+                                end
+                            end
+                        end
+                        local step = item and item.step or listed
+                        if item and step.closes == d.id and OPEN_LIKE[st] then
                             if not c.rec then
                                 -- never recruited: only the recruitment itself matters here
                                 if step.kind == "recruit" and step.critical and not romanceOnly then
@@ -812,8 +903,14 @@ end
 
 local function warnLink(body, item, color)
     local st = T.Status[item.status] or T.Status["?"]
+    local title = item.step.title
+    if item.choices then
+        local titles = {}
+        for _, other in ipairs(item.choices) do table.insert(titles, other.title) end
+        title = "choose a path: " .. table.concat(titles, "  /  ")
+    end
     local sel = body:AddSelectable(string.format("%s   %s%s%s   (%s)###w_%s", T.BULLET, item.comp.name,
-        T.SEP_SHORT, item.step.title, string.lower(st.label), item.step.id))
+        T.SEP_SHORT, title, string.lower(st.label), item.step.id))
     T.SetColor(sel, color or T.C.text)
     sel.OnClick = function()
         T.SetProp(sel, "Selected", false)
@@ -943,7 +1040,7 @@ local function refreshPage(snap)
         if not comp.romanceable then table.insert(parts, "Not romanceable") end
     end
     T.Update(page.status, table.concat(parts, T.SEP), color)
-    if page.portrait then T.SetProp(page.portrait, "Tint", (c and c.lost) and LOST_TINT or FULL_TINT) end
+    setPortrait(page.portrait, c)
 
     local showBar = c and c.a ~= nil and not c.you and (c.rec or c.a ~= 0)
     T.Show(page.approval, showBar and true or false)
@@ -1005,7 +1102,7 @@ local function refreshPage(snap)
             local info = T.Status[st] or T.Status["?"]
             local shown = (st == S.AVAILABLE and step.optional) and T.Status.OPT or info
             T.Update(s.status, shown.label, shown.color)
-            local band = st == S.NEXT and T.NextRowBg or T.Clear
+            local band = ACT_NOW[st] and T.NextRowBg or T.Clear
             T.SetColor(s.row, band, "TableRowBg")
             T.SetColor(s.row, band, "TableRowBgAlt")
             T.Update(s.tip, (shown == T.Status.OPT and T.StatusHelp.OPT) or T.StatusHelp[st] or "Waiting for game data.")
@@ -1046,7 +1143,7 @@ local function refreshPage(snap)
             pcall(function() if s.override.Checked ~= overridden then s.override.Checked = overridden end end)
             T.Show(s.override, st ~= S.DONE)
 
-            if st == S.NEXT and not page.openedNext[step.id] then
+            if ACT_NOW[st] and not page.openedNext[step.id] then
                 page.openedNext[step.id] = true
                 pcall(function() s.tree:SetOpen(true, "Always") end)
             end
@@ -1131,6 +1228,12 @@ function UI.Init()
         if UI.win and UI.open then UI.Refresh(snap) end
     end)
     Set.OnChange(function(key)
+        if key == "toastPosition" or key == "toastX" or key == "toastY" then
+            -- show where notices will go; nothing else in the window depends on it
+            refreshToastControls()
+            if CR.Toasts then CR.Toasts.Preview() end
+            return
+        end
         if not UI.win then return end
         if key == "opacity" then T.ApplyWindow(UI.win, Set.Get("opacity")) end
         local cb = UI.h.checks and UI.h.checks[key]

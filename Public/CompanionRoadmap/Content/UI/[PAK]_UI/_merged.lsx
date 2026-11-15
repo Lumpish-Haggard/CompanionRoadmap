@@ -49,9 +49,9 @@
 				</node>
 				<node id="Resource">
 					<attribute id="ID" type="FixedString" value="578f10d3-8627-4f69-bdc0-5188b968db1f" />
-					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Laezel" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Laezel_Dead" />
 					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers__CE_Stickers_LaeZel_Dead.DDS" />
-					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Laezel" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Laezel_Dead" />
 					<attribute id="Streaming" type="bool" value="True" />
 					<attribute id="Type" type="int32" value="1" />
 					<attribute id="SRGB" type="bool" value="False" />
@@ -124,6 +124,18 @@
 					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Minsc" />
 					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode Stickers_Final_CE Stickers_CE_Stickers_Minc_Oh.DDS" />
 					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Minsc" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="f1402f27-146a-4547-a180-da04899ce7e2" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Laezel" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Laezel Alien.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Laezel" />
 					<attribute id="Streaming" type="bool" value="True" />
 					<attribute id="Type" type="int32" value="1" />
 					<attribute id="SRGB" type="bool" value="False" />

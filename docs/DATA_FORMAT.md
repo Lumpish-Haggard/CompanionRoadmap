@@ -67,7 +67,8 @@ local SH = "ORI_COM_ShadowHeart"
 | `after` | step id list | Steps of the **same companion** that must be finished first (WAITING until then; MISSED if one of them was missed). |
 | `needsJoin` | bool | Whether the step can only happen with the companion at your side. Romance and approval steps always do; set `true` on a story step that does, or `false` to opt out. See [Waiting for recruitment](#waiting-for-recruitment). |
 | `closes` | deadline id | The point of no return after which this step can no longer be done. |
-| `alt` | string | Group of alternative routes; once one is done, the others become N/A (e.g. Minthara knockout vs raid). |
+| `alt` | string | Group of alternative paths (e.g. Minthara: knock her out, or raid the Grove with her). While two or more of them can be taken, they are all shown as **CHOOSE**, as equals: none is NEXT and none is optional. Once one is done, the others become N/A. Use a name that is unique across companions. Write each path neutrally: its costs go in `changes`, not in `avoid`. |
+| `changes` | string list | What taking this step changes, shown under "What it changes" without warning colours. For paths, where a choice has costs the player may well accept ("Karlach and Wyll leave you"). `avoid` is for mistakes. |
 
 ## Conditions
 
@@ -152,11 +153,11 @@ skip = { Q(SH, "CampFight_LaezelDied"), C.Lost("Laezel") },
 9. the step's act is later than the campaign -> **LATER**
 10. a step in `after` is not finished, or the step needs the companion and they have not joined -> **WAITING**
 11. an earlier act and no `closes` -> **NOT SEEN** (or **N/A** if `optional`)
-12. otherwise **TO DO**; the first one (required before optional) becomes **NEXT**
+12. otherwise **TO DO**
 
 These are the labels the window shows (`UI/Theme.lua`); the code uses one-letter status codes (`CR.Status`).
 
-Then `alt` groups are resolved.
+Then `alt` groups are resolved: once one path is done, the others become **N/A**; while two or more paths are still open, they become **CHOOSE**. Finally the first TO DO step becomes **NEXT** (required steps before optional ones), unless a CHOOSE step comes first: then the choice itself is what to do next, and no single step is marked.
 
 ## Deadlines (`closes`)
 

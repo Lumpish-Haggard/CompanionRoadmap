@@ -648,6 +648,109 @@ def test_scheduler_facts():
     check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
 
 
+def test_paths_are_equal_choices():
+    """Alternative paths (an `alt` group) are shown side by side as CHOOSE, never as NEXT plus OPTIONAL."""
+    world, sim, server, client = make()
+    world.set_flag("GLO_Origin_PartOfTheTeam_Shadowheart")
+    world.set_flag("VISITEDREGION_WLD_Main_A")
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+
+    check(step_status(client, "MIN_A1_KO") == "C", f"good path: {step_status(client, 'MIN_A1_KO')}")
+    check(step_status(client, "MIN_A1_RAID") == "C", f"evil path: {step_status(client, 'MIN_A1_RAID')}")
+    statuses = all_statuses(client)
+    minthara_next = [k for k, v in statuses.items() if k.startswith("MIN_") and v == "N"]
+    check(not minthara_next, f"no single Minthara step is NEXT while the paths are open: {minthara_next}")
+
+    client.eval('CR.UI.Select("Minthara")')
+    sim.run()
+    for step_id, other in (("MIN_A1_KO", "Evil path"), ("MIN_A1_RAID", "Good path")):
+        label = client.eval(f"return CR.UI.page.steps.{step_id}.status.Label")
+        check(label == "CHOOSE", f"{step_id} should read CHOOSE, got {label}")
+        state = str(client.eval(f"return CR.UI.page.steps.{step_id}.state.Label"))
+        check(state.startswith("Or instead: " + other), f"{step_id} should point at the other path: {state}")
+        band = client.eval(f"return CR.UI.page.steps.{step_id}.row:GetColor('TableRowBg')[4]")
+        check(band > 0, f"{step_id} should be highlighted like a next step")
+    details = visible_labels(client, "CR.UI.page.steps.MIN_A1_RAID.details").upper()   # labels are drawn in capitals
+    check("WHAT IT CHANGES" in details and "AVOID" not in details,
+          f"the evil path's costs are information, not a warning: {details!r}")
+    note = str(client.eval("return CR.Guides.Get('Minthara').romanceNotes[2].text"))
+    check("does not close" in note, f"the evil-path night must not read as closing her romance: {note}")
+
+    # the warnings list the decision once, with both paths
+    warnings = visible_labels(client, "CR.UI.h.warnBody")
+    minthara = [line for line in warnings.split("\n") if "Minthara" in line]
+    check(len(minthara) == 1 and "choose a path" in minthara[0] and "Good path" in minthara[0] and "Evil path" in minthara[0],
+          f"one warning entry for Minthara's paths: {minthara}")
+
+    # taking the evil path: the good one no longer applies, and her Act 2 recruitment stays open
+    world.set_flag("NIGHT_GoblinHunt_RaiderCelebration")
+    server.mock.FireOsiris("FlagSet", "NIGHT_GoblinHunt_RaiderCelebration_" + FLAG["NIGHT_GoblinHunt_RaiderCelebration"],
+                           "NULL_" + NULL, 0)
+    sim.run(max_ms=1000)
+    check(step_status(client, "MIN_A1_RAID") == "D" and step_status(client, "MIN_A1_KO") == "X",
+          f"raid taken: {step_status(client, 'MIN_A1_RAID')} / {step_status(client, 'MIN_A1_KO')}")
+    world.set_flag("Act2_PointOfNoReturnReached")
+    world.set_flag("VISITEDREGION_SCL_Main_A")
+    world.set_level("SCL_Main_A")
+    server.mock.FireOsiris("FlagSet", "Act2_PointOfNoReturnReached_" + FLAG["Act2_PointOfNoReturnReached"], "NULL_" + NULL, 0)
+    sim.run(max_ms=1000)
+    check(step_status(client, "MIN_A2_TRIAL") in ("A", "N"), f"evil path still leads to her trial: {step_status(client, 'MIN_A2_TRIAL')}")
+    check(step_status(client, "MIN_A2_ROMANCE") == "P", f"and her romance waits for her: {step_status(client, 'MIN_A2_ROMANCE')}")
+
+    # the good path, in another save
+    world2, sim2, server2, client2 = make()
+    world2.set_flag("GLO_Origin_PartOfTheTeam_Shadowheart")
+    world2.set_flag("VISITEDREGION_WLD_Main_A")
+    world2.dbs["DB_KnockedOut"] = [(UUID["Minthara"],)]
+    fire_running(client2, sim2)
+    client2.eval("CR.UI.SetOpen(true)")
+    sim2.run()
+    check(step_status(client2, "MIN_A1_KO") == "D" and step_status(client2, "MIN_A1_RAID") == "X", "knockout taken")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+    check(not server2.errors() and not client2.errors(), f"errors: {server2.errors()} {client2.errors()}")
+
+
+def test_notice_position():
+    """Where notices appear is a setting, with presets, a custom position and a preview."""
+    world, sim, server, client = make()
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+
+    def placed():
+        return str(client.eval("""
+            local p = rawget(CR.Toasts.win, "__pos")
+            return string.format("%d,%d|%.2f,%.2f", p.pos[1], p.pos[2], p.pivot[1], p.pivot[2])
+        """))
+
+    # the default is where notices always were: right edge, under the minimap (mock viewport 2560 x 1440)
+    client.eval('CR.Settings.Set("notifications", false)')
+    client.eval("CR.Toasts.Preview()")
+    check(client.eval("return CR.Toasts.win.Open") is True, "the preview shows even with notices switched off")
+    check(placed() == "2536,441|1.00,0.00", f"default position: {placed()}")
+
+    # a preset moves the notice at once (the settings change shows a preview)
+    client.eval('CR.Settings.Set("toastPosition", "left-middle")')
+    check(placed() == "24,720|0.00,0.50", f"left, middle: {placed()}")
+    check(client.eval("return CR.UI.h.toastX.Visible") is False, "the custom sliders are hidden for a preset")
+
+    # custom: the sliders appear, and moving them moves the notice
+    client.eval('CR.Settings.Set("toastPosition", "custom")')
+    check(client.eval("return CR.UI.h.toastX.Visible and CR.UI.h.toastY.Visible") is True, "custom shows the sliders")
+    client.eval("local s = CR.UI.h.toastX s.OnChange(s, { 50, 0, 0, 0 })")
+    client.eval("local s = CR.UI.h.toastY s.OnChange(s, { 0, 0, 0, 0 })")
+    check(client.eval('return CR.Settings.Get("toastX")') == 50, "the slider sets the setting")
+    check(placed() == "1280,24|0.50,0.00", f"custom 50 / 0: {placed()}")
+
+    # the combo in the Options tab follows changes made elsewhere (MCM)
+    client.eval('CR.Settings.Set("toastPosition", "bottom-centre")')
+    index = client.eval("return CR.UI.h.toastPos.SelectedIndex")
+    check(index == 5, f"the combo should show 'Bottom centre' (index 5), got {index}")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+
+
 def test_origin_avatar_and_console():
     world = World()
     world.host = "S_Player_ShadowHeart_" + UUID["Shadowheart"]
@@ -715,6 +818,15 @@ def test_mcm_integration():
     check(client.eval('return CR.Settings.Get("hideCompleted")') is True, "MCM changes should apply")
     client.eval('CR.Settings.Set("spoilers", "titles")')
     check(client.lua.eval("__mcm.values.spoilers") == "Titles only for future acts", "settings set in the overlay go to MCM")
+
+    # where notices appear: MCM keeps the choice text, the mod its own key; numbers are clamped
+    client.lua.eval("function() __mcm.values.notify_position = 'Left, middle' __mcm.values.notify_x = 250 end")()
+    client.lua.eval("__mcmFire")(client.to_lua({"modUUID": "9f8b2c41-7a63-4d8e-9b5a-1c8e5f2a3d4e",
+                                                "settingId": "notify_position", "value": "Left, middle"}))
+    check(client.eval('return CR.Settings.Get("toastPosition")') == "left-middle", "MCM's position choice should apply")
+    check(client.eval('return CR.Settings.Get("toastX")') == 100, "an out-of-range MCM slider value is clamped")
+    client.eval('CR.Settings.Set("toastPosition", "custom")')
+    check(client.lua.eval("__mcm.values.notify_position") == "Custom (use the sliders)", "the overlay's choice goes to MCM")
     check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
 
 
@@ -904,20 +1016,52 @@ def test_portraits_and_esc():
     fire_running(client, sim)
     client.eval("CR.UI.SetOpen(true)")
     sim.run()
-    texture = client.eval("return CR.UI.sidebar.Shadowheart.img.ImageData.TextureResource")
+    def tint(lua_expr):
+        return str(client.eval(f"local t = {lua_expr} return string.format('%.2f,%.2f,%.2f,%.2f', t[1], t[2], t[3], t[4])"))
+
+    def side(name, field="normal"):
+        return f"CR.UI.sidebar.{name}.img.{field}"
+
+    texture = client.eval(f"return {side('Shadowheart')}.ImageData.TextureResource")
     check(texture == client.eval("return CR.Theme.Portraits.Shadowheart"), "the sidebar should show Shadowheart's portrait")
     check(client.eval("return CR.UI.page.portrait ~= nil") is True, "the page header should have a portrait")
-    check(client.eval("return CR.UI.sidebar.Astarion.img.Tint[4]") < 1, "a lost companion's portrait is dimmed")
-    check(client.eval("return CR.UI.sidebar.Shadowheart.img.Tint[4]") == 1, "other portraits are not dimmed")
+    # Astarion died before joining: he is lost, and his picture says so
+    check(tint(side("Astarion") + ".Tint") == tint("CR.Theme.PortraitTint.lost"), "a lost companion's portrait is faded")
+    check(tint(side("Shadowheart") + ".Tint") == tint("CR.Theme.PortraitTint.normal"), "other portraits are not")
+    # no living portrait may be the "dead" sticker (Lae'zel's looked dead even while she was alive)
+    check(client.eval("return CR.Theme.Portraits.Laezel ~= CR.Theme.PortraitsDead.Laezel") is True,
+          "Lae'zel's normal portrait must not be her 'dead' sticker")
+    check(client.eval(f"return {side('Laezel')}.Visible and not {side('Laezel', 'dead')}.Visible") is True,
+          "a living Lae'zel shows her normal picture")
     # every companion has a declared texture
     missing = client.eval("""
         local out = {}
         for _, comp in ipairs(CR.Guides.Companions) do
-            if not CR.UI.sidebar[comp.id].img then out[#out + 1] = comp.id end
+            local img = CR.UI.sidebar[comp.id].img
+            if not (img and img.normal) then out[#out + 1] = comp.id end
         end
         return table.concat(out, ",")
     """)
     check(missing == "", f"companions without a portrait: {missing}")
+
+    # Lae'zel falls in battle while in the party: her 'dead' sticker, tinted red (she can be revived)
+    laezel = "S_Player_Laezel_" + UUID["Laezel"]
+    world.set_flag("GLO_Origin_PartOfTheTeam_Laezel")
+    world.dead.add(UUID["Laezel"])
+    server.mock.FireOsiris("Died", laezel)
+    sim.run(max_ms=1000)
+    check(client.eval(f"return {side('Laezel', 'dead')}.Visible and not {side('Laezel')}.Visible") is True,
+          "a dead Lae'zel shows her 'dead' sticker")
+    check(tint(side("Laezel", "dead") + ".Tint") == tint("CR.Theme.PortraitTint.dead"), "dead but revivable is red")
+    client.eval('CR.UI.Select("Laezel")')
+    check(client.eval("return CR.UI.page.portrait.dead.Visible") is True, "the page header follows too")
+    # revived: back to normal
+    world.dead.discard(UUID["Laezel"])
+    server.mock.FireOsiris("Resurrected", laezel)
+    sim.run(max_ms=1000)
+    check(client.eval(f"return {side('Laezel')}.Visible and not {side('Laezel', 'dead')}.Visible") is True,
+          "a revived Lae'zel shows her normal picture again")
+    check(tint(side("Laezel") + ".Tint") == tint("CR.Theme.PortraitTint.normal"), "and it is no longer tinted")
 
     # portraits can be switched off; the window keeps working
     client.eval('CR.Settings.Set("portraits", false)')
@@ -1136,6 +1280,8 @@ TESTS = [
     test_two_companion_steps,
     test_left_for_good_without_journal,
     test_scheduler_facts,
+    test_paths_are_equal_choices,
+    test_notice_position,
     test_origin_avatar_and_console,
     test_mcm_integration,
 ]

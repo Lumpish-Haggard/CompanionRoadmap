@@ -19,6 +19,7 @@ CR.Status = {
     DONE = "D",        -- detected in the save
     OVERRIDE = "O",    -- checked off manually
     NEXT = "N",        -- the next thing to do for this companion
+    CHOICE = "C",      -- one of several paths (an `alt` group), all open: take the one you want
     AVAILABLE = "A",   -- can be done now
     PENDING = "P",     -- waiting on an earlier step
     UPCOMING = "U",    -- belongs to a later act
@@ -425,10 +426,31 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
         end
     end
 
+    -- Paths that are still open side by side are a choice: none of them is "the"
+    -- next step, and none is merely optional. Only when two or more can be taken
+    -- now; a single one left is an ordinary step.
+    local openAlt = {}
+    for _, step in ipairs(comp.steps) do
+        if step.alt and not doneAlt[step.alt] and result[step.id][1] == S.AVAILABLE then
+            openAlt[step.alt] = (openAlt[step.alt] or 0) + 1
+        end
+    end
+    for _, step in ipairs(comp.steps) do
+        local r = result[step.id]
+        if step.alt and (openAlt[step.alt] or 0) >= 2 and r[1] == S.AVAILABLE then r[1] = S.CHOICE end
+    end
+
     -- The first available step becomes "next" (required steps win over optional ones).
+    -- A choice between paths that comes before any required step is itself what to
+    -- do next, so no single step is marked (not even an optional one before it).
     local nextStep = nil
     for _, step in ipairs(comp.steps) do
-        if result[step.id][1] == S.AVAILABLE then
+        local st = result[step.id][1]
+        if st == S.CHOICE then
+            nextStep = nil
+            break
+        end
+        if st == S.AVAILABLE then
             if not step.optional then nextStep = step break end
             nextStep = nextStep or step
         end

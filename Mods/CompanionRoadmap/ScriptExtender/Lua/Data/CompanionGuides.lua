@@ -144,6 +144,7 @@ Guides.StepById = {}         -- stepId -> step
 Guides.StepOwner = {}        -- stepId -> companion
 Guides.StepIndex = {}        -- stepId -> position inside its companion
 Guides.JoinStep = {}         -- companion id -> the step that makes them join
+Guides.AltGroups = {}        -- alt group -> its steps (alternative paths, in story order)
 Guides.Errors = {}
 
 local function addError(fmt, ...)
@@ -264,6 +265,12 @@ function Guides.Register(def)
             step.skip = normalizeList(step.skip)
             step.todo = step.todo or {}
             step.avoid = step.avoid or {}
+            step.changes = step.changes or {}
+            if step.alt then
+                -- alternative paths: the window shows them as equal choices (CHOOSE)
+                Guides.AltGroups[step.alt] = Guides.AltGroups[step.alt] or {}
+                table.insert(Guides.AltGroups[step.alt], step)
+            end
             Guides.StepById[step.id] = step
             Guides.StepOwner[step.id] = def
             Guides.StepIndex[step.id] = i
@@ -349,6 +356,15 @@ function Guides.BuildIndex()
                 for _, dep in ipairs(step.after) do
                     if not Guides.StepById[dep] then addError("step '%s' depends on unknown step '%s'", step.id, dep) end
                 end
+            end
+        end
+    end
+    for alt, steps in pairs(Guides.AltGroups) do
+        if #steps < 2 then addError("alt group '%s' has only one step", alt) end
+        for _, step in ipairs(steps) do
+            if Guides.StepOwner[step.id] ~= Guides.StepOwner[steps[1].id] then
+                addError("alt group '%s' mixes companions", alt)
+                break
             end
         end
     end

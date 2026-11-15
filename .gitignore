@@ -7,8 +7,9 @@ build/
 dist/
 *.pak
 
-# Nexus Mods page drafts (kept out of the repository)
-nexus/
+# Local Nexus Mods notes (upload checklist, screenshots). The published page text
+# itself is tracked in .github/nexus/.
+/nexus/
 
 # Private reference material and scratch data. It stays on each contributor's
 # machine: never committed, never shipped (see docs/REFERENCE_DATA.md).

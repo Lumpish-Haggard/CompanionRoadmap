@@ -1,0 +1,1 @@
+A live, in-game checklist for every companion's personal quest and romance, read straight from your save. See what is done, what to do next and what you are about to miss before each point of no return. All 10 companions, about 100 steps. Work in progress: bug reports welcome.

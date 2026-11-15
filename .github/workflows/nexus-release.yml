@@ -1,0 +1,296 @@
+name: Release to Nexus Mods
+
+# Publishes a release on Nexus Mods:
+#  1. the zip attached to the GitHub release, as a new version of the mod's main
+#     file, with that version's CHANGELOG.md section;
+#  2. the mod page text in .github/nexus/ (description and summary), when it
+#     changed since the previous release.
+#
+# It never builds anything: packing needs LSLib and the game files, and the zip
+# that goes out must be the one that was tested in game. Attach that zip to the
+# GitHub release; this workflow only checks it and passes it on.
+#
+# Setup (once): the repository secret NEXUSMODS_API_KEY, a personal API key from
+# https://www.nexusmods.com/settings/api-keys (Settings > Secrets and variables >
+# Actions). Without it the run stops before anything is sent.
+#
+# Runs on its own when a release is published (not for pre-releases). From the
+# Actions tab it can also be run by hand:
+#   dry run    check everything, send nothing (the default)
+#   upload     what a published release does
+#   page only  update the mod page text only; the ref may be a branch such as main
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Release tag, for example v1.0.2 (for 'page only' a branch such as main also works)"
+        required: true
+      mode:
+        description: "What to do"
+        type: choice
+        options: ["dry run", "upload", "page only"]
+        default: "dry run"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexus-release
+  cancel-in-progress: false
+
+env:
+  NEXUS_API: "https://api.nexusmods.com/v3"
+  # From the mod's Files tab with "Advanced" switched on (under the "API" heading).
+  NEXUS_MOD_ID: "14920716412919"   # Unique Mod ID
+  NEXUS_FILE_ID: "8373264"         # File ID of the main file
+  # Nexus allows only letters, digits, spaces and _ ' ( ) . - in a file name, at most 50 characters.
+  NEXUS_DISPLAY_NAME: "Companion and Romance Roadmap"
+  # At most 255 characters (enforced by Nexus from 2026-11-23).
+  NEXUS_FILE_DESCRIPTION: "Requires the BG3 Script Extender. Install with BG3 Mod Manager or Vortex, then press F7 in game. Work in progress."
+  PAGE_DIR: ".github/nexus"
+
+jobs:
+  release:
+    name: Publish on Nexus Mods
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    steps:
+      - name: Work out what to do
+        id: plan
+        env:
+          REF: ${{ github.event.release.tag_name || inputs.ref }}
+          MODE: ${{ github.event_name == 'release' && 'upload' || inputs.mode }}
+        run: |
+          is_tag=false
+          if [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then is_tag=true; fi
+          case "$MODE" in
+            "upload")    file=$is_tag; page=auto;  dry=false ;;
+            "page only") file=false;   page=force; dry=false ;;
+            "dry run")   file=$is_tag; page=auto;  dry=true ;;
+            *) echo "::error::Unknown mode '$MODE'"; exit 1 ;;
+          esac
+          if [ "$MODE" = "upload" ] && [ "$is_tag" != "true" ]; then
+            echo "::error::'$REF' is not a release tag like v1.0.2"
+            exit 1
+          fi
+          {
+            echo "ref=$REF"
+            echo "version=${REF#v}"
+            echo "file=$file"
+            echo "page=$page"
+            echo "dry=$dry"
+          } >> "$GITHUB_OUTPUT"
+          echo "ref=$REF mode=$MODE -> file=$file page=$page dry=$dry"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.plan.outputs.ref }}
+          fetch-depth: 0   # the previous release tag is needed to see whether the page text changed
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # ------------------------------------------------------------------ checks
+
+      - name: Check that the tagged source is this version
+        if: steps.plan.outputs.file == 'true'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          grep -q "^CR.Version = \"$VERSION\"" Mods/CompanionRoadmap/ScriptExtender/Lua/Shared/Core.lua || {
+            echo "::error::Shared/Core.lua at this tag is not version $VERSION"
+            exit 1
+          }
+          python tools/build_data.py --offline
+
+      - name: Download and check the zip attached to the release
+        id: zip
+        if: steps.plan.outputs.file == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.plan.outputs.ref }}
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          file="CompanionRoadmap-$VERSION.0.zip"
+          mkdir upload
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$file" --dir upload || {
+            echo "::error::Release $TAG has no asset named $file. Attach the zip you tested in game."
+            exit 1
+          }
+          unzip -Z1 "upload/$file" > listing.txt
+          cat listing.txt
+          for expected in CompanionRoadmap.pak info.json; do
+            grep -qx "$expected" listing.txt || { echo "::error::$file does not contain $expected"; exit 1; }
+          done
+          ls -l "upload/$file"
+          sha256sum "upload/$file"
+          echo "file=upload/$file" >> "$GITHUB_OUTPUT"
+
+      - name: Changelog for this version
+        id: notes
+        if: steps.plan.outputs.file == 'true'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          python tools/release_notes.py "$VERSION" --plain > notes.txt
+          cat notes.txt
+          {
+            echo "text<<NOTES_END_OF_TEXT"
+            cat notes.txt
+            echo "NOTES_END_OF_TEXT"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check the mod page text
+        id: page
+        if: steps.plan.outputs.page != 'false'
+        env:
+          REF: ${{ steps.plan.outputs.ref }}
+          PAGE: ${{ steps.plan.outputs.page }}
+        run: |
+          python - <<'PY'
+          import json, os, re, sys
+          d = os.environ["PAGE_DIR"]
+          desc = open(os.path.join(d, "description.bbcode"), encoding="utf-8").read().strip()
+          summary = re.sub(r"\s+", " ", open(os.path.join(d, "summary.txt"), encoding="utf-8").read()).strip()
+          problems = []
+          if not desc:
+              problems.append("description.bbcode is empty")
+          if not 1 <= len(summary) <= 350:
+              problems.append(f"summary.txt must be 1 to 350 characters, it is {len(summary)}")
+          for p in problems:
+              print(f"::error::{p}")
+          if problems:
+              sys.exit(1)
+          json.dump({"summary": summary, "description": desc}, open("page.json", "w", encoding="utf-8"), ensure_ascii=False)
+          print(f"summary: {len(summary)} characters, description: {len(desc)} characters")
+          PY
+          send=false
+          if [ "$PAGE" = "force" ]; then
+            send=true; why="requested"
+          else
+            prev=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "HEAD^" 2>/dev/null || true)
+            if [ -z "$prev" ]; then
+              send=true; why="no earlier release"
+            elif [ -z "$(git ls-tree -r --name-only "$prev" -- "$PAGE_DIR")" ]; then
+              send=true; why="the page text is new since $prev"
+            elif ! git diff --quiet "$prev" HEAD -- "$PAGE_DIR"; then
+              send=true; why="the page text changed since $prev"
+            else
+              why="the page text is unchanged since $prev"
+            fi
+          fi
+          echo "Update the page: $send ($why)"
+          echo "send=$send" >> "$GITHUB_OUTPUT"
+          echo "why=$why" >> "$GITHUB_OUTPUT"
+
+      - name: Check that the API key is set
+        if: steps.plan.outputs.dry != 'true'
+        env:
+          KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::Add the repository secret NEXUSMODS_API_KEY first (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      # ------------------------------------------------------------------ the file
+
+      - name: Upload the file to Nexus Mods
+        id: nexus
+        if: steps.plan.outputs.file == 'true' && steps.plan.outputs.dry != 'true'
+        uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2 # v1.0.0-beta.11
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          mod_id: ${{ env.NEXUS_MOD_ID }}
+          file_id: ${{ env.NEXUS_FILE_ID }}
+          filename: ${{ steps.zip.outputs.file }}
+          version: ${{ steps.plan.outputs.version }}
+          display_name: ${{ env.NEXUS_DISPLAY_NAME }}
+          description: ${{ env.NEXUS_FILE_DESCRIPTION }}
+          category: main
+          update_mod_version: true
+          archive_existing_version: false
+          changelog: ${{ steps.notes.outputs.text }}
+
+      # ------------------------------------------------------------------ the page
+
+      - name: Save the page text that is live now
+        id: before
+        if: steps.page.outputs.send == 'true'
+        env:
+          KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "No API key, so the live page cannot be read (dry run)."
+            exit 0
+          fi
+          code=$(curl -sS -o live.json -w '%{http_code}' \
+            -H "apikey: $KEY" -H "Accept: application/json" -H "User-Agent: CompanionRoadmap-release" \
+            "$NEXUS_API/mods/$NEXUS_MOD_ID")
+          if [ "$code" != "200" ]; then
+            echo "::error::Reading the mod page failed (HTTP $code); nothing was changed on the page."
+            head -c 1000 live.json; echo
+            exit 1
+          fi
+          mkdir -p before
+          python - <<'PY'
+          import json
+          data = json.load(open("live.json", encoding="utf-8"))["data"]
+          live = (data.get("description") or "").replace("\r\n", "\n").strip()
+          open("before/description.bbcode", "w", encoding="utf-8").write(live + "\n")
+          new = json.load(open("page.json", encoding="utf-8"))["description"]
+          print("The live description is", "identical to" if live == new else "different from", "the new one.")
+          PY
+          diff -u before/description.bbcode "$PAGE_DIR/description.bbcode" || true
+
+      - name: Keep the old page text as an artifact
+        if: steps.page.outputs.send == 'true' && hashFiles('before/description.bbcode') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: nexus-page-before
+          path: before/
+          retention-days: 90
+
+      - name: Update the mod page
+        id: pageupdate
+        if: steps.page.outputs.send == 'true' && steps.plan.outputs.dry != 'true'
+        env:
+          KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+        run: |
+          code=$(curl -sS -o response.txt -w '%{http_code}' -X PATCH \
+            -H "apikey: $KEY" -H "Content-Type: application/json" -H "Accept: application/json" \
+            -H "User-Agent: CompanionRoadmap-release" \
+            --data-binary @page.json "$NEXUS_API/mods/$NEXUS_MOD_ID")
+          echo "HTTP $code"
+          if [ "$code" != "204" ] && [ "$code" != "200" ]; then
+            echo "::error::Updating the mod page failed (HTTP $code). The file upload above is not affected."
+            head -c 2000 response.txt; echo
+            exit 1
+          fi
+          echo "done=true" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        if: always()
+        env:
+          REF: ${{ steps.plan.outputs.ref }}
+          DRY: ${{ steps.plan.outputs.dry }}
+          FILE: ${{ steps.zip.outputs.file }}
+          VERSION_ID: ${{ steps.nexus.outputs.version_id }}
+          PAGE_SEND: ${{ steps.page.outputs.send }}
+          PAGE_WHY: ${{ steps.page.outputs.why }}
+          PAGE_DONE: ${{ steps.pageupdate.outputs.done }}
+        run: |
+          {
+            echo "### Nexus Mods"
+            echo "- Ref: ${REF:-?}"
+            [ "$DRY" = "true" ] && echo "- Dry run: nothing was sent."
+            if [ -n "$VERSION_ID" ]; then echo "- File uploaded: ${FILE} (Nexus file version id $VERSION_ID)"
+            elif [ -n "$FILE" ]; then echo "- File checked, not uploaded: ${FILE}"; fi
+            if [ "$PAGE_DONE" = "true" ]; then echo "- Page updated ($PAGE_WHY). The old text is in the nexus-page-before artifact."
+            elif [ "$PAGE_SEND" = "true" ]; then echo "- Page would be updated ($PAGE_WHY), but was not."
+            elif [ -n "$PAGE_WHY" ]; then echo "- Page left alone ($PAGE_WHY)."; fi
+          } >> "$GITHUB_STEP_SUMMARY"

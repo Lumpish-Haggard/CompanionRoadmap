@@ -48,7 +48,7 @@ py tools/test_harness.py
 
 Without the game files you can still run `py tools/build_data.py --offline` (what CI runs). It checks your change against the committed `Data/Flags.lua`, but it cannot verify new flags or journal steps.
 
-The data format, condition helpers and status rules are documented in [docs/DATA_FORMAT.md](docs/DATA_FORMAT.md). How the pieces fit together is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The data format, condition helpers and status rules are documented in [docs/DATA_FORMAT.md](docs/DATA_FORMAT.md). How the pieces fit together is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). What has been reviewed so far, and what each warning was confirmed against, is in [docs/COVERAGE.md](docs/COVERAGE.md): when you add a golden rule, add its row there.
 
 ## Code guidelines
 
@@ -80,6 +80,9 @@ The data format, condition helpers and status rules are documented in [docs/DATA
 1. Bump `Version64` in `meta.lsx` (both places) and `CR.Version` in `Shared/Core.lua`. `build_data.py --offline` checks that they match.
 2. Move the *Unreleased* changelog entries under the new version.
 3. `.\pack.ps1` and smoke-test the pak in game.
-4. Tag `vX.Y.Z`, create a GitHub release and attach `dist/CompanionRoadmap-X.Y.Z.0.zip`; upload the same zip to Nexus Mods and update the mod page there.
+4. Tag `vX.Y.Z` and publish a GitHub release with `dist/CompanionRoadmap-X.Y.Z.0.zip` attached. Attach the zip you tested; do not rebuild it in between. `python tools/release_notes.py X.Y.Z` prints the changelog section for the release text.
+5. Publishing the release runs [`nexus-release.yml`](.github/workflows/nexus-release.yml). It checks that the tag, `Core.lua` and the attached zip agree, then sends that zip to Nexus Mods as a new version of the main file, with the version's changelog section. It needs the repository secret `NEXUSMODS_API_KEY`. Pre-releases are skipped.
+6. The mod page text lives in [`.github/nexus/`](.github/nexus/README.md) (`description.bbcode`, `summary.txt`). The same run updates the page when either file changed since the previous release, after saving the old text as a run artifact. Edit the page there, not on the website, or the next update overwrites the website edit. Images are still managed on Nexus by hand.
+7. From the Actions tab the workflow can also be run by hand: *dry run* (the default: checks everything, sends nothing), *upload*, or *page only* (for example to correct the known issues without a new release; the ref can be `main`).
 
 `Version64` encodes `major << 55 | minor << 47 | revision << 31 | build`; for example 1.0.0.0 is `36028797018963968` and 1.1.0.0 is `36169534507319296`.

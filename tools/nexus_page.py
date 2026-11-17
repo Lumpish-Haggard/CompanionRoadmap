@@ -23,7 +23,9 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGE_DIR = os.path.join(ROOT, ".github", "nexus")
-SUMMARY_MAX = 350
+# Nexus shows at most 240 characters of a summary, cut at a whole word: no Baldur's Gate 3
+# mod's summary is longer (1,785 of them read through the public API, 2026-11-18).
+SUMMARY_MAX = 240
 
 
 def description() -> str:

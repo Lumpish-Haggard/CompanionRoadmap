@@ -99,7 +99,8 @@ CR.Guides.Register {
                 "Gale leaves too, unless you talk him round when he confronts you there.",
             },
             rewards = "Minthara survives and turns up at Moonrise Towers in Act 2. From there her path is the same as on the good path: free her and she joins you.",
-            done = { G("NIGHT_GoblinHunt_RaiderCelebration") },
+            -- the raid itself (the Grove fell), or the goblins' celebration that follows it
+            done = { G("DEN_AttackOnDen_State_RaiderVictory"), G("NIGHT_GoblinHunt_RaiderCelebration") },
             closes = "act1",
         },
 

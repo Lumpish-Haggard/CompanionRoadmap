@@ -1,0 +1,936 @@
+{
+  "about": "Same playthrough as the other two fixtures, at an earlier save, written by 1.1.0 in game (SE v33). Shadowheart recruited and dating (approval 62), wolf memory not shared yet. Lae'zel dead, Astarion dead before joining. The first real report with the choice memory in it (4 facts, written by the game's Script Extender), so the replay also checks that the stored format loads.",
+  "expect": {
+    "SH_P_POD": "D",
+    "SH_A1_RECRUIT": "D",
+    "SH_A1_PARTY": "D",
+    "SH_A1_WOLF": "N",
+    "SH_A1_LAEZEL": "X",
+    "LAE_A1_CAGE": "M",
+    "AST_A1_RECRUIT": "M",
+    "MIN_A1_KO": "C",
+    "MIN_A1_RAID": "C",
+    "KAR_A1_COOL": "P",
+    "SH_A3_SWIM": "U",
+    "SH_A3_SHARNIGHT": "U"
+  },
+  "act": 1,
+  "avatar": "11111111-2222-3333-4444-555555555555",
+  "camp": {
+    "completed": [
+      "NIGHT_Ceremorphosis2_485f589f-0da1-4eea-9a28-210f91837a69",
+      "NIGHT_Ceremorphosis3_f25994b3-f7e3-4783-be7e-c66b8fd25952",
+      "NIGHT_Shadowheart_Romance1_AfterCelebration_f8193afc-a7cd-4d3c-a6d8-dd4270701d96"
+    ],
+    "expiring": [],
+    "nights": [
+      [
+        "NIGHT_DaisyAcknowledgement_4965d83f-4b23-4ddf-8dfb-b7df21b2b8f6",
+        7030
+      ],
+      [
+        "NIGHT_DaisyCourseCorrection_6c56a05e-ad97-4100-9969-e10cd35c8860",
+        7020
+      ],
+      [
+        "NIGHT_DaisyStelmane_7d379735-d643-40a3-aabb-7a180f792817",
+        7040
+      ],
+      [
+        "NIGHT_DaisyMissionStatement_287c7434-5031-46f2-9b7b-4999a2349081",
+        7090
+      ],
+      [
+        "NIGHT_Laezel_Romance1_AfterCelebration_c970265f-56e2-46e8-812d-06e0ac0a0fe4",
+        4020
+      ],
+      [
+        "NIGHT_Laezel_SecondNight_37bc82ff-e71b-4723-b7d0-bf0d660ec5b6",
+        4030
+      ],
+      [
+        "NIGHT_Laezel_Romance2_66c4c3b0-b608-46af-86b2-3e3dd4e44f5b",
+        4040
+      ],
+      [
+        "NIGHT_Laezel_Romance2_Karlach_be83bf66-7298-42b2-8e80-9df60ad00989",
+        4050
+      ],
+      [
+        "NIGHT_Laezel_Romance2_SkippedRomance1_242309e0-a758-44b4-85cc-90fc24986df9",
+        4055
+      ],
+      [
+        "NIGHT_Laezel_AfterRomance2_8f4cac3c-a531-49b3-a3c1-509c0f1c09ae",
+        4060
+      ],
+      [
+        "NIGHT_Laezel_AvatarReflectionAfterCreche_a763ff69-2926-43b2-8dba-c81cd2f10c20",
+        6040
+      ],
+      [
+        "NIGHT_Laezel_ReturnToCrecheReflection_179d4c3c-be4b-4d7a-bd76-d1391467a42f",
+        6060
+      ],
+      [
+        "NIGHT_Laezel_PostZaithisk_8b11150d-e948-448e-99d1-104d0164a0df",
+        5320
+      ],
+      [
+        "NIGHT_Laezel_VlaakithBetrayal_bdaa7b4d-e60f-477d-a870-197bd3f4f83e",
+        5330
+      ],
+      [
+        "NIGHT_Laezel_PostCrecheDestruction_d8518d06-c176-4d5c-932d-c7b55d0802ab",
+        5340
+      ],
+      [
+        "NIGHT_Laezel_VossCampConfrontation_d6828c76-0e03-4aa1-b980-886fcf49f8a9",
+        5050
+      ],
+      [
+        "NIGHT_Laezel_VlaakithVisit_254a4c0b-9fd2-4b41-97e9-5f60e338e062",
+        5080
+      ],
+      [
+        "NIGHT_Laezel_EggIsGone_9e32ff31-1cf9-4a86-873a-c7af2a7c0469",
+        2100
+      ],
+      [
+        "NIGHT_OwlbearCub1_43696ea8-3bff-440d-bee8-9cd912e4e8b4",
+        1040
+      ],
+      [
+        "NIGHT_OwlbearCub2_5cc6fbd5-0b70-4fb5-a29c-9b7ed9e39fcc",
+        1030
+      ],
+      [
+        "NIGHT_OwlbearCubDog_902e10f8-e9d8-4eb6-ac0f-9ad8ba8787ed",
+        1010
+      ],
+      [
+        "NIGHT_ORI_Gale_ElminsterVisit_a58e9b3e-b458-48be-b32a-a88a2c65bed5",
+        5180
+      ],
+      [
+        "NIGHT_GoblinHunt_TieflingCelebration_1ad8c357-2695-4d5c-b5f9-8b8c07803121",
+        8020
+      ],
+      [
+        "NIGHT_GoblinHunt_RaiderCelebration_86fee25f-1069-4f17-89fa-4c5b69f82e0b",
+        8020
+      ],
+      [
+        "NIGHT_HalsinsReturn_a6ed2a44-776c-41d7-abfc-b8240209f886",
+        7140
+      ],
+      [
+        "NIGHT_HalsinsRevenge_55e86575-6b8c-45ab-b582-e5ed048e6a83",
+        1070
+      ],
+      [
+        "NIGHT_Astarion_SecondNight_2c52aa2f-d729-4ac5-9416-eecafa630615",
+        4250
+      ],
+      [
+        "NIGHT_WyllConfrontation_2576ba4e-90a9-4da0-bb40-6f012ed4a888",
+        8010
+      ],
+      [
+        "NIGHT_Karlach_CoolingDownForYou_fe5a09c0-6166-46b6-8d2b-a0cfeeca9e0a",
+        2000
+      ],
+      [
+        "NIGHT_Karlach_EngineProblems_b25f5638-342e-4b82-9462-3d8c7612c115",
+        5500
+      ],
+      [
+        "NIGHT_Karlach_EngineProblems_Avatar_d177bb44-3d39-4c45-8325-fd1ee0556ca1",
+        6500
+      ],
+      [
+        "NIGHT_Laezel_GithChokepoint_63990fd7-ff59-4c1b-b9e5-5961cde235d5",
+        2030
+      ],
+      [
+        "NIGHT_Wyll_PostRecruitement_e7758c69-100f-4a68-a8f7-e563f060e2f0",
+        2040
+      ],
+      [
+        "NIGHT_Wyll_MizoraFirstContact_aca43cd3-ce1d-4042-b7d2-b7813f923daf",
+        6280
+      ],
+      [
+        "NIGHT_WyllConfrontation_NotRecruited_b35ff12a-ceae-4bf8-94e2-5050576e4d6e",
+        8010
+      ],
+      [
+        "NIGHT_Wyll_MizorasJudgement_ad448187-17b4-45a1-9acc-eb8b016e1dd2",
+        5260
+      ],
+      [
+        "NIGHT_AstarionHungerA_ec01fb84-d9ef-47b6-8b32-6620edd67d50",
+        6220
+      ],
+      [
+        "NIGHT_AstarionHungerC_Bite_fe3fd3a0-70d1-4bc4-8a7f-4614f89ac23d",
+        5220
+      ],
+      [
+        "NIGHT_Astarion_Kidnapping_04183627-15b8-4fa1-bc09-fb24eabe01f2",
+        2070
+      ],
+      [
+        "NIGHT_DangerousBook_Astarion_fca39fe2-c92d-4293-a75a-67bd4b4fdc81",
+        2110
+      ],
+      [
+        "NIGHT_Astarion_DrunkBear_ed0578fa-7aa8-48e0-86dd-9fa161a7971e",
+        2100
+      ],
+      [
+        "NIGHT_Astarion_TastingParty_52c2c940-2645-4cf9-9991-758a579fc7bd",
+        2060
+      ],
+      [
+        "NIGHT_Astarion_Mirror_8232e0bb-a97e-4eec-8b07-59d4d2cd58cd",
+        2050
+      ],
+      [
+        "NIGHT_Astarion_ScarReading_31c28982-5ef7-416d-8b77-6042545b3e68",
+        5030
+      ],
+      [
+        "NIGHT_Gale_LearnSpell_393b05ff-d866-4115-8ece-872232ce44cf",
+        4010
+      ],
+      [
+        "NIGHT_Gale_Ate1Item_ab1b5018-e0d7-4f2e-a1f5-c79defbda1a2",
+        4020
+      ],
+      [
+        "NIGHT_Gale_Ate2Items_4ced08e2-8635-4e67-b3f8-deb7288dc132",
+        4030
+      ],
+      [
+        "NIGHT_Gale_Ate3Items_2f9bef51-e342-4741-84ba-2d4ba49e27b0",
+        4040
+      ],
+      [
+        "NIGHT_DaisyDream1_52669b07-9584-4c9d-8219-49679811fd4f",
+        7080
+      ],
+      [
+        "NIGHT_InfernalBoxAppears_47942a99-c44e-4e90-a0a2-6956bed9dc5b",
+        8015
+      ],
+      [
+        "NIGHT_ShadowHeart_LaezelFight_a3445b22-7973-416b-b8a3-1856414589ea",
+        2090
+      ],
+      [
+        "NIGHT_ShadowHeart_Box_2de162ec-4272-4750-945f-9d306c5ba0da",
+        2010
+      ],
+      [
+        "NIGHT_Astarion_Romance1_AfterCelebration_a032c2da-0fb1-4600-a97e-2ea416c5435a",
+        4160
+      ],
+      [
+        "NIGHT_Gale_PrePartDev1_85026b27-18d6-4468-b861-4ab84f342385",
+        4230
+      ],
+      [
+        "NIGHT_Gale_DatingStartFallback_0f359d48-14f4-4cfc-bbc9-22ecbfe026c3",
+        4220
+      ],
+      [
+        "NIGHT_Gale_TressymJoin_7ca98d47-e9fa-4f87-8728-8e56c4ee652d",
+        6290
+      ],
+      [
+        "NIGHT_Gale_Fallback_AskFirstMagicItem_7ee4663c-cabf-4b57-b092-99e6b6eadbac",
+        800
+      ],
+      [
+        "NIGHT_Gale_Fallback_AskFirstMagicItem_Approval_5c61949f-e522-4a6d-8f39-9d45e859e060",
+        810
+      ],
+      [
+        "NIGHT_BurningUpForYou_0373609c-b495-497a-8e22-7f86c7b38bd9",
+        4220
+      ],
+      [
+        "NIGHT_PaladinsOfTyr_Forced_3a1be30d-8a75-4bee-b717-0b2e4d7bd1e9",
+        8030
+      ]
+    ]
+  },
+  "format": 1,
+  "game": "v4.76.31.656",
+  "level": "WLD_Main_A",
+  "markers": {
+    "act1Locked": false,
+    "act3": false,
+    "colony": false,
+    "endgame": false,
+    "lastLight": false,
+    "lowerCity": false,
+    "moonrise": false,
+    "sharTemple": false
+  },
+  "memory": {
+    "facts": {
+      "7f9ac9e8-1e8d-4bf8-8716-68215f0f066e@00000000-0000-0000-0000-000000000000": 1,
+      "7f9ac9e8-1e8d-4bf8-8716-68215f0f066e@3ed74f06-3c60-42dc-83f6-f034cb47c679": 1,
+      "7f9ac9e8-1e8d-4bf8-8716-68215f0f066e@11111111-2222-3333-4444-555555555555": 1,
+      "e87f1e21-a758-47ae-8c0e-9e715eb289b5@11111111-2222-3333-4444-555555555555": 1
+    },
+    "left": [],
+    "v": 1
+  },
+  "mod": "1.1.0",
+  "overrides": [],
+  "raw": {
+    "companions": {
+      "Astarion": {
+        "approval": 0,
+        "dating": false,
+        "dead": true,
+        "downed": false,
+        "info": {
+          "a": 0,
+          "dead": true,
+          "lost": true,
+          "rec": false,
+          "why": "died",
+          "you": false
+        },
+        "ko": false,
+        "noRes": false,
+        "partnered": false,
+        "perma": false,
+        "team": false,
+        "uuid": "c7c13742-bacd-460a-8f65-f864fe41f255"
+      },
+      "Gale": {
+        "approval": 0,
+        "dating": false,
+        "dead": false,
+        "downed": false,
+        "info": {
+          "a": 0,
+          "cnt": {
+            "items": {
+              "bits": [
+                0,
+                0,
+                0
+              ],
+              "reached": false
+            }
+          },
+          "dead": false,
+          "lost": false,
+          "rec": false,
+          "you": false
+        },
+        "ko": false,
+        "noRes": false,
+        "partnered": false,
+        "perma": false,
+        "team": false,
+        "uuid": "ad9af97d-75da-406a-ae13-7071c563f604"
+      },
+      "Halsin": {
+        "approval": 0,
+        "dating": false,
+        "dead": false,
+        "downed": false,
+        "info": {
+          "a": 0,
+          "dead": false,
+          "lost": false,
+          "rec": false,
+          "you": false
+        },
+        "ko": false,
+        "noRes": true,
+        "partnered": false,
+        "perma": false,
+        "team": false,
+        "uuid": "7628bc0e-52b8-42a7-856a-13a6fd413323"
+      },
+      "Jaheira": {
+        "approval": 0,
+        "dating": false,
+        "dead": false,
+        "downed": false,
+        "info": {
+          "a": 0,
+          "dead": false,
+          "lost": false,
+          "rec": false,
+          "you": false
+        },
+        "ko": false,
+        "noRes": false,
+        "partnered": false,
+        "perma": false,
+        "team": false,
+        "uuid": "91b6b200-7d00-4d62-8dc9-99e8339dfa1a"
+      },
+      "Karlach": {
+        "approval": 0,
+        "dating": false,
+        "dead": false,
+        "downed": false,
+        "info": {
+          "a": 0,
+          "cnt": {
+            "engine": {
+              "bits": [
+                0,
+                0
+              ],
+              "reached": false
+            }
+          },
+          "dead": false,
+          "lost": false,
+          "rec": false,
+          "you": false
+        },
+        "ko": false,
+        "noRes": false,
+        "partnered": false,
+        "perma": false,
+        "team": false,
+        "uuid": "2c76687d-93a2-477b-8b18-8a14b549304c"
+      },
+      "Laezel": {
+        "approval": 0,
+        "dating": false,
+        "dead": true,
+        "downed": true,
+        "info": {
+          "a": 0,
+          "dead": true,
+          "lb": 2,
+          "lost": true,
+          "rec": false,
+          "you": false
+        },
+        "ko": false,
+        "noRes": true,
+        "partnered": false,
+        "perma": true,
+        "team": false,
+        "uuid": "58a69333-40bf-8358-1d17-fff240d7fb12"
+      },
+      "Minsc": {
+        "approval": 0,
+        "dating": false,
+        "dead": false,
+        "downed": false,
+        "info": {
+          "a": 0,
+          "dead": false,
+          "lost": false,
+          "rec": false,
+          "you": false
+        },
+        "ko": false,
+        "noRes": true,
+        "partnered": false,
+        "perma": false,
+        "team": false,
+        "uuid": "0de603c5-42e2-4811-9dad-f652de080eba"
+      },
+      "Minthara": {
+        "approval": 0,
+        "dating": false,
+        "dead": false,
+        "downed": false,
+        "info": {
+          "a": 0,
+          "dead": false,
+          "lost": false,
+          "rec": false,
+          "you": false
+        },
+        "ko": false,
+        "noRes": true,
+        "partnered": false,
+        "perma": false,
+        "team": false,
+        "uuid": "25721313-0c15-4935-8176-9f134385451b"
+      },
+      "Shadowheart": {
+        "approval": 62,
+        "dating": true,
+        "dead": false,
+        "downed": false,
+        "info": {
+          "a": 62,
+          "cnt": {
+            "nightsong": {
+              "bits": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "reached": false
+            }
+          },
+          "dead": false,
+          "lost": false,
+          "rec": true,
+          "rel": "dating",
+          "you": false
+        },
+        "ko": false,
+        "noRes": false,
+        "partnered": false,
+        "perma": false,
+        "team": true,
+        "uuid": "3ed74f06-3c60-42dc-83f6-f034cb47c679"
+      },
+      "Wyll": {
+        "approval": 0,
+        "dating": false,
+        "dead": false,
+        "downed": false,
+        "info": {
+          "a": 0,
+          "dead": false,
+          "lost": false,
+          "rec": false,
+          "you": false
+        },
+        "ko": false,
+        "noRes": false,
+        "partnered": false,
+        "perma": false,
+        "team": false,
+        "uuid": "c774d764-4a17-48dc-b470-32ace9ce447d"
+      }
+    },
+    "flags": [
+      "7f9ac9e8-1e8d-4bf8-8716-68215f0f066e@00000000-0000-0000-0000-000000000000",
+      "7f9ac9e8-1e8d-4bf8-8716-68215f0f066e@3ed74f06-3c60-42dc-83f6-f034cb47c679",
+      "7f9ac9e8-1e8d-4bf8-8716-68215f0f066e@11111111-2222-3333-4444-555555555555",
+      "e87f1e21-a758-47ae-8c0e-9e715eb289b5@11111111-2222-3333-4444-555555555555"
+    ],
+    "quests": [
+      "CHA_LaezelRecruit/KilledLaezel",
+      "CHA_LaezelRecruit/SidedTieflings",
+      "ORI_COM_Laezel/LaezelDied_Generic",
+      "ORI_COM_ShadowHeart/Recruited_Beach",
+      "TUT_ShadowheartEscape/FreedAndRecruited",
+      "TUT_ShadowheartEscape/UsedRune"
+    ]
+  },
+  "se": "33",
+  "steps": {
+    "AST_A1_BITE": [
+      "M",
+      0
+    ],
+    "AST_A1_GUR": [
+      "M",
+      0
+    ],
+    "AST_A1_RECRUIT": [
+      "M",
+      0
+    ],
+    "AST_A1_ROMANCE": [
+      "M",
+      0
+    ],
+    "AST_A2_CONFESSION": [
+      "M",
+      0
+    ],
+    "AST_A2_SCARS": [
+      "M",
+      0
+    ],
+    "AST_A3_AMBUSH": [
+      "M",
+      0
+    ],
+    "AST_A3_CAZADOR": [
+      "M",
+      0
+    ],
+    "AST_A3_FINALE": [
+      "M",
+      0
+    ],
+    "AST_A3_SPAWNS": [
+      "M",
+      0
+    ],
+    "GALE_A1_ITEM": [
+      "P",
+      0
+    ],
+    "GALE_A1_PORTAL": [
+      "N",
+      0
+    ],
+    "GALE_A1_TRUTH": [
+      "P",
+      0
+    ],
+    "GALE_A1_WEAVE": [
+      "P",
+      0
+    ],
+    "GALE_A2_ELMINSTER": [
+      "U",
+      0
+    ],
+    "GALE_A2_STARS": [
+      "U",
+      0
+    ],
+    "GALE_A3_KARSUS": [
+      "U",
+      0
+    ],
+    "GALE_A3_MYSTRA": [
+      "U",
+      0
+    ],
+    "GALE_A3_ROMANCE": [
+      "U",
+      0
+    ],
+    "HAL_A1_GROVE": [
+      "P",
+      0
+    ],
+    "HAL_A1_RESCUE": [
+      "N",
+      0
+    ],
+    "HAL_A2_ART": [
+      "U",
+      0
+    ],
+    "HAL_A2_CURSE": [
+      "U",
+      0
+    ],
+    "HAL_A2_OLIVER": [
+      "U",
+      0
+    ],
+    "HAL_A2_PORTAL": [
+      "U",
+      0
+    ],
+    "HAL_A3_ROMANCE": [
+      "U",
+      0
+    ],
+    "JAH_A2_ISOBEL": [
+      "U",
+      0
+    ],
+    "JAH_A2_MEET": [
+      "U",
+      0
+    ],
+    "JAH_A2_RECRUIT": [
+      "U",
+      0
+    ],
+    "JAH_A3_HARPERS": [
+      "U",
+      0
+    ],
+    "JAH_A3_MINSC": [
+      "U",
+      0
+    ],
+    "KAR_A1_COOL": [
+      "P",
+      0
+    ],
+    "KAR_A1_DAMMON": [
+      "P",
+      0
+    ],
+    "KAR_A1_PALADINS": [
+      "P",
+      0
+    ],
+    "KAR_A1_RECRUIT": [
+      "N",
+      0
+    ],
+    "KAR_A1_ROMANCE": [
+      "P",
+      0
+    ],
+    "KAR_A2_DAMMON": [
+      "U",
+      0
+    ],
+    "KAR_A2_ROMANCE": [
+      "U",
+      0
+    ],
+    "KAR_A2_UPGRADE": [
+      "U",
+      0
+    ],
+    "KAR_A3_DATE": [
+      "U",
+      0
+    ],
+    "KAR_A3_FATE": [
+      "U",
+      0
+    ],
+    "KAR_A3_GORTASH": [
+      "U",
+      0
+    ],
+    "LAE_A1_CAGE": [
+      "M",
+      -1
+    ],
+    "LAE_A1_CRECHE": [
+      "M",
+      0
+    ],
+    "LAE_A1_FIND": [
+      "M",
+      0
+    ],
+    "LAE_A1_ROMANCE": [
+      "M",
+      0
+    ],
+    "LAE_A1_SHADOWHEART": [
+      "M",
+      0
+    ],
+    "LAE_A2_DUEL": [
+      "M",
+      0
+    ],
+    "LAE_A2_VOSS": [
+      "M",
+      0
+    ],
+    "LAE_A3_HAMMER": [
+      "M",
+      0
+    ],
+    "LAE_A3_ORPHEUS": [
+      "M",
+      0
+    ],
+    "LAE_A3_SUNRISE": [
+      "M",
+      0
+    ],
+    "LAE_A3_VLAAKITH": [
+      "M",
+      0
+    ],
+    "MINSC_A3_BOO": [
+      "U",
+      0
+    ],
+    "MINSC_A3_EMPEROR": [
+      "U",
+      0
+    ],
+    "MINSC_A3_KO": [
+      "U",
+      0
+    ],
+    "MINSC_A3_STONELORD": [
+      "U",
+      0
+    ],
+    "MINSC_A3_VAULT": [
+      "U",
+      0
+    ],
+    "MIN_A1_KO": [
+      "C",
+      0
+    ],
+    "MIN_A1_MEET": [
+      "A",
+      0
+    ],
+    "MIN_A1_RAID": [
+      "C",
+      0
+    ],
+    "MIN_A2_ESCAPE": [
+      "U",
+      0
+    ],
+    "MIN_A2_PARTNER": [
+      "U",
+      0
+    ],
+    "MIN_A2_PRISON": [
+      "U",
+      0
+    ],
+    "MIN_A2_ROMANCE": [
+      "U",
+      0
+    ],
+    "MIN_A2_TRIAL": [
+      "U",
+      0
+    ],
+    "MIN_A3_LOYALTY": [
+      "U",
+      0
+    ],
+    "MIN_A3_ORIN": [
+      "U",
+      0
+    ],
+    "SH_A1_IDOL": [
+      "A",
+      0
+    ],
+    "SH_A1_LAEZEL": [
+      "X",
+      2
+    ],
+    "SH_A1_NOBLESTALK": [
+      "A",
+      0
+    ],
+    "SH_A1_PARTY": [
+      "D",
+      1
+    ],
+    "SH_A1_RECRUIT": [
+      "D",
+      1
+    ],
+    "SH_A1_WOLF": [
+      "N",
+      0
+    ],
+    "SH_A1_WOUND": [
+      "A",
+      0
+    ],
+    "SH_A2_NIGHTSONG": [
+      "U",
+      0
+    ],
+    "SH_A2_ORCHID": [
+      "U",
+      0
+    ],
+    "SH_A2_PARTNER": [
+      "U",
+      0
+    ],
+    "SH_A2_SPEAR": [
+      "U",
+      0
+    ],
+    "SH_A2_TRIALS": [
+      "U",
+      0
+    ],
+    "SH_A3_FUTURE": [
+      "U",
+      0
+    ],
+    "SH_A3_GRIEF": [
+      "U",
+      0
+    ],
+    "SH_A3_LOOKOUT": [
+      "U",
+      0
+    ],
+    "SH_A3_NIGHTFALL": [
+      "U",
+      0
+    ],
+    "SH_A3_NOCTURNE": [
+      "U",
+      0
+    ],
+    "SH_A3_PARENTS": [
+      "U",
+      0
+    ],
+    "SH_A3_SHARNIGHT": [
+      "U",
+      0
+    ],
+    "SH_A3_SWIM": [
+      "U",
+      0
+    ],
+    "SH_P_POD": [
+      "D",
+      1
+    ],
+    "WYLL_A1_DUKE": [
+      "A",
+      0
+    ],
+    "WYLL_A1_KARLACH": [
+      "P",
+      0
+    ],
+    "WYLL_A1_PARTY": [
+      "P",
+      0
+    ],
+    "WYLL_A1_RECRUIT": [
+      "N",
+      0
+    ],
+    "WYLL_A2_DANCE": [
+      "U",
+      0
+    ],
+    "WYLL_A2_MIZORA": [
+      "U",
+      0
+    ],
+    "WYLL_A3_ANSUR": [
+      "U",
+      0
+    ],
+    "WYLL_A3_PACT": [
+      "U",
+      0
+    ],
+    "WYLL_A3_PROPOSAL": [
+      "U",
+      0
+    ],
+    "WYLL_A3_RAVENGARD": [
+      "U",
+      0
+    ]
+  }
+}

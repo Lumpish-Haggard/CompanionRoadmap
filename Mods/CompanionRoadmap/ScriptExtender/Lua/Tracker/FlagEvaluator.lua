@@ -97,8 +97,13 @@ E.DbFirstValue = dbFirstValue
 local Context = {}
 Context.__index = Context
 
+--- `mem` is the choice memory (Tracker/Memory.lua). Every watched fact that is true
+--- now is written down in it. While `recall` is on (only while a step's `done` list
+--- is re-read, see evaluateCompanion), a fact the save no longer shows still counts
+--- if it was written down earlier; `recalled` then holds the act it was seen in.
 function E.NewContext(avatar)
-    return setmetatable({ avatar = avatar, cache = {}, lost = {}, comp = nil }, Context)
+    return setmetatable({ avatar = avatar, cache = {}, lost = {}, comp = nil,
+        mem = CR.Memory, recall = false, recalled = nil }, Context)
 end
 
 -- The story routine that removes a companion for good
@@ -125,7 +130,15 @@ function Context:Flag(guid, target)
     local v = self.cache[key]
     if v == nil then
         v = osiInt(Osi.GetFlag, guid, target) == 1
-        self.cache[key] = v
+        self.cache[key] = v            -- the cache holds what the save shows, never a memory
+        if v and self.mem then self.mem.Note(self.mem.FlagKey(guid, target)) end
+    end
+    if not v and self.recall and self.mem then
+        local act = self.mem.Recall(self.mem.FlagKey(guid, target))
+        if act ~= nil then
+            self.recalled = act
+            return true
+        end
     end
     return v
 end
@@ -187,21 +200,48 @@ function Context:IsPermaDefeated(comp)
     return v
 end
 
+--- In camp or party right now. Always what the save shows, never a memory.
 function Context:Recruited(comp)
     local key = "rec:" .. comp.uuid
     local v = self.cache[key]
     if v == nil then
+        local recall = self.recall
+        self.recall = false
         v = (comp.recruited ~= nil and self:Check(comp.recruited)) or dbHasRows("DB_PartOfTheTeam", comp.uuid)
+        self.recall = recall
         self.cache[key] = v
     end
     return v
 end
 
+--- Knocked out right now (what the save shows).
 function Context:KnockedOut(comp)
-    if dbHasRows("DB_KnockedOut", comp.uuid) then return true end
-    if comp.id == "Minthara" and dbHasRows("DB_ORI_Minthara_RemoveKnockedOutLater", 1) then return true end
-    for _, status in ipairs({ "KNOCKED_OUT", "KNOCKED_OUT_PERMANENTLY", "KNOCKED_OUT_TEMPORARILY" }) do
-        if osiInt(Osi.HasActiveStatus, comp.uuid, status) == 1 then return true end
+    local key = "ko:" .. comp.uuid
+    local v = self.cache[key]
+    if v == nil then
+        v = dbHasRows("DB_KnockedOut", comp.uuid)
+            or (comp.id == "Minthara" and dbHasRows("DB_ORI_Minthara_RemoveKnockedOutLater", 1))
+        if not v then
+            for _, status in ipairs({ "KNOCKED_OUT", "KNOCKED_OUT_PERMANENTLY", "KNOCKED_OUT_TEMPORARILY" }) do
+                if osiInt(Osi.HasActiveStatus, comp.uuid, status) == 1 then v = true break end
+            end
+        end
+        self.cache[key] = v
+        -- the game drops these records later (Minthara's once she is moved to Moonrise)
+        if v and self.mem then self.mem.Note(self.mem.KoKey(comp.uuid)) end
+    end
+    return v
+end
+
+--- Knocked out now, or (while recalling) seen knocked out earlier.
+function Context:KnockedOutEver(comp)
+    if self:KnockedOut(comp) then return true end
+    if self.recall and self.mem then
+        local act = self.mem.Recall(self.mem.KoKey(comp.uuid))
+        if act ~= nil then
+            self.recalled = act
+            return true
+        end
     end
     return false
 end
@@ -216,6 +256,8 @@ function Context:LeftForGood(comp)
     if v == nil then
         v = not self:Recruited(comp)
             and self:Tagged(comp, TAG_DOWNED_DISABLED) and self:Tagged(comp, TAG_NO_RESURRECTION)
+            -- the companion Orin abducted is tagged too while she holds them, and can be rescued
+            and osiInt(Osi.HasActiveStatus, comp.uuid, "WYR_ORINSIMPERSONATION_KNOCKEDOUT") ~= 1
         if v and comp.joined ~= nil then
             local previous = self.comp
             self.comp = comp
@@ -228,20 +270,36 @@ function Context:LeftForGood(comp)
 end
 
 --- Whether a companion is lost for this playthrough, and why.
---- Returns lost, why ("died" = died before ever joining, "left" = removed by the
---- game without a journal entry, nil = one of the companion's own `left` conditions).
---- Cached, and safe to call for a companion other than the one being evaluated.
+--- Returns lost, why, detail:
+---   why     "died" = died before ever joining, "left" = removed by the game without
+---           a journal entry, nil = one of the companion's own `left` conditions
+---   detail  what says so: the index of the `left` condition, or the game's own
+---           reason for removing them (remembered by Tracker/Memory.lua), or nil
+--- Always judged by what the save shows. Cached, and safe to call for a companion
+--- other than the one being evaluated.
 function Context:Lost(comp)
     local cached = self.lost[comp.id]
-    if cached then return cached[1], cached[2] end
-    local previous = self.comp
-    self.comp = comp
-    local lost, why = false, nil
-    for _, c in ipairs(comp.left) do
-        if self:Check(c) then lost = true break end
+    if cached then return cached[1], cached[2], cached[3] end
+    local previous, recall = self.comp, self.recall
+    self.comp, self.recall = comp, false
+    local lost, why, detail = false, nil, nil
+    for i, c in ipairs(comp.left) do
+        if self:Check(c) then lost, detail = true, i break end
     end
     if not lost and self:IsPermaDefeated(comp) then lost = true end
     local isYou = self.avatar ~= nil and CR.Guid(self.avatar) == comp.uuid
+    if not isYou then
+        -- the game's own reason, written down at the moment it removed them
+        local note = self.mem and self.mem.Left(comp.uuid) or nil
+        if note and self:Recruited(comp) then
+            self.mem.ClearLeft(comp.uuid)       -- back in the team: not gone for good after all
+            note = nil
+        end
+        if note then
+            if not lost then lost, why = true, "left" end
+            detail = detail or note.r
+        end
+    end
     if not lost and not isYou then
         if self:LeftForGood(comp) then
             lost, why = true, "left"
@@ -253,9 +311,9 @@ function Context:Lost(comp)
             lost, why = true, "died"
         end
     end
-    self.comp = previous
-    self.lost[comp.id] = { lost, why }
-    return lost, why
+    self.comp, self.recall = previous, recall
+    self.lost[comp.id] = { lost, why, detail }
+    return lost, why, detail
 end
 
 function Context:Relationship(comp, state)
@@ -294,7 +352,7 @@ function Context:Check(cond)
     if k == "rel" then return comp ~= nil and self:Relationship(comp, cond.state) end
     if k == "rec" then return comp ~= nil and self:Recruited(comp) end
     if k == "dead" then return comp ~= nil and (self:IsDead(comp) or self:IsPermaDefeated(comp)) end
-    if k == "ko" then return comp ~= nil and self:KnockedOut(comp) end
+    if k == "ko" then return comp ~= nil and self:KnockedOutEver(comp) end
     if k == "prog" then return self:Marker(cond.marker) end
     return false
 end
@@ -343,17 +401,31 @@ E.Progress = progress
 local S = CR.Status
 local SATISFIED = { [S.DONE] = true, [S.OVERRIDE] = true, [S.NA] = true }
 
+--- Re-reads a step's `done` list with the choice memory switched on. Returns the
+--- index of the condition that holds and the act the remembered fact was seen in,
+--- or nil when memory adds nothing.
+local function recallDone(ctx, step)
+    if not ctx.mem then return nil end
+    ctx.recall, ctx.recalled = true, nil
+    local idx = ctx:FirstTrue(step.done)
+    local act = ctx.recalled
+    ctx.recall, ctx.recalled = false, nil
+    if idx and act ~= nil then return idx, act end
+    return nil
+end
+
 local function evaluateCompanion(ctx, comp, prog, overrides)
-    local lost, why = ctx:Lost(comp)
+    local lost, why, lostBy = ctx:Lost(comp)
     ctx.comp = comp
-    local result = {}       -- stepId -> { status, evidence }
+    local result = {}       -- stepId -> { status, evidence, act it is remembered from (or nil) }
     local isYou = ctx.avatar ~= nil and CR.Guid(ctx.avatar) == comp.uuid
     local dead = ctx:IsDead(comp)
+    local recruited = ctx:Recruited(comp)
 
     -- Steps that need the companion at your side (romance and approval steps, or
     -- `needsJoin = true`) wait for the step that makes them join, and are missed
     -- with it. A companion who is in the team now always satisfies this.
-    local joinStep = (not isYou and not ctx:Recruited(comp)) and Guides.JoinStep[comp.id] or nil
+    local joinStep = (not isYou and not recruited) and Guides.JoinStep[comp.id] or nil
 
     local visiting = {}
     local function eval(step)
@@ -362,7 +434,7 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
         if visiting[step.id] then return S.PENDING end
         visiting[step.id] = true
 
-        local status, evidence = nil, 0
+        local status, evidence, remembered = nil, 0, nil
         local doneIdx = ctx:FirstTrue(step.done)
         if doneIdx then
             status, evidence = S.DONE, doneIdx
@@ -372,8 +444,16 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
             status = S.NA
         else
             local skipIdx = ctx:FirstTrue(step.skip)
-            local failIdx = (not skipIdx) and ctx:FirstTrue(step.fail) or nil
-            if skipIdx then
+            local failedIdx = ctx:FirstTrue(step.fail)
+            local failIdx = (not skipIdx) and failedIdx or nil
+            -- The choice memory: something the mod saw done stays done, unless the save
+            -- shows a recorded failure. It outranks "another path" (skip) and all the
+            -- guesses below (gone, too late, not seen), and can never make a step missed.
+            local recalledIdx, recalledAct = nil, nil
+            if not failedIdx then recalledIdx, recalledAct = recallDone(ctx, step) end
+            if recalledIdx then
+                status, evidence, remembered = S.DONE, recalledIdx, recalledAct
+            elseif skipIdx then
                 status, evidence = S.NA, skipIdx
             elseif failIdx then
                 status, evidence = S.MISSED, -failIdx
@@ -407,7 +487,7 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
             end
         end
         visiting[step.id] = nil
-        result[step.id] = { status, evidence }
+        result[step.id] = { status, evidence, remembered }
         return status
     end
 
@@ -422,7 +502,7 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
     for _, step in ipairs(comp.steps) do
         local r = result[step.id]
         if step.alt and doneAlt[step.alt] and r[1] ~= S.DONE and r[1] ~= S.OVERRIDE then
-            r[1], r[2] = S.NA, 0
+            r[1], r[2], r[3] = S.NA, 0, nil
         end
     end
 
@@ -461,9 +541,10 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
     local info = {
         lost = lost,
         you = isYou,
-        rec = ctx:Recruited(comp),
+        rec = recruited,
         dead = dead,
-        why = why,          -- "died": lost because they died before joining
+        why = why,          -- "died": lost because they died before joining; "left": removed by the game
+        lb = lostBy,        -- what says they are lost: index into comp.left, or the game's reason
     }
     if not isYou and ctx.avatar then
         local a = osiInt(Osi.GetApprovalRating, comp.uuid, ctx.avatar)
@@ -494,7 +575,11 @@ end
 function E.BuildSnapshot(avatar, overrides)
     overrides = overrides or {}
     local ctx = E.NewContext(avatar)
+    local mem = ctx.mem
+    -- facts first seen while the act is still being worked out are stamped right after
+    if mem then mem.BeginSnapshot() end
     local prog = progress(ctx, avatar)
+    if mem then mem.Stamp(prog.act) end
     local snap = {
         p = CR.Protocol,
         v = CR.Version,
@@ -519,6 +604,10 @@ function E.BuildSnapshot(avatar, overrides)
             CR.Error("Evaluating %s failed: %s", comp.id, tostring(err))
             snap.comps[comp.id] = { error = true }
         end
+    end
+    if mem then
+        mem.Commit()                -- keep what was first seen during this snapshot in the save
+        snap.mem = mem.Count()      -- how many moments are remembered (shown in Options)
     end
     return snap, ctx
 end

@@ -519,6 +519,60 @@ function Guides.Explain(cond, comp, mode)
 end
 
 -- -----------------------------------------------------------------------------
+-- Why a companion is gone, in plain words
+--
+-- When the story removes a companion for good it names a reason (the second
+-- argument of PROC_Origins_CompanionLeavePermanently). The choice memory keeps
+-- it; these are the reasons the Patch 8 scripts use, each followed by the goal
+-- that uses it. Sentences complete "<Name> ...". A few reasons are reused by the
+-- scripts for another companion, hence the per-companion table.
+-- -----------------------------------------------------------------------------
+Guides.LeaveReasons = {
+    CompanionLowRelation = "left for good: approval fell too low, or you told them to go",   -- _GLO_Shared_Origins
+    CompanionHostile = "turned against you",                                                  -- _GLO_Shared_Origins
+    CompanionMurdered = "was killed and cannot be brought back",                              -- _GLO_Shared_Origins
+    Killed = "was killed and cannot be brought back",                                         -- several
+    MetGur_AstarionDisappear = "was taken by the monster hunter after he learned where you camp",   -- Act1a_Camp
+    LaezelDied_KilledAtCampNight = "was killed the night she threatened the camp",            -- Act1a_Camp
+    TurnedHostileAtChokepoint = "sided with the githyanki patrol against you",                -- Act1_PLA_GithChokepoint
+    TurnedHostileDuringInquisitor = "turned on you in the Inquisitor's chamber",              -- Act1b_OriginMoments_Laezel
+    LeftInSCL = "went on alone to look for a creche",                                         -- GLO_Origin_Laezel_PostEA
+    TurnedHostile_MorphicPool_OrpheusPath = "turned on you when Orpheus was consumed",        -- Act3c_END_IllithidOptions
+    TurnedHostile_MorphicPool_VlaakithPath = "turned on you when Orpheus was freed",          -- Act3c_END_IllithidOptions
+    ORI_Gale_BombNotDisarmed = "left camp after Ketheric fell: Elminster's message never reached him",      -- Act2b_ORI_Gale
+    ORI_Gale_AbandonedBombNotDisarmed = "was left behind in the shadow-cursed lands",         -- Act2b_ORI_Gale
+    SHA_Shadowheart_Denied = "left after you went into the Shadowfell without her",           -- Act2_OriginMoments_Shadowheart
+    TWN_StayingInSCL = "stayed behind because the shadow curse was not lifted",               -- Act2_TWN_LiftingTheCurse_Finale
+    AstarionSacrificed = "was sacrificed when Cazador completed his ritual",                  -- Act3b_LOW_CazadorsPalace_RitualRoom
+    LOW_SharGrotto_SoldToViconia = "was handed over to Viconia",                              -- Act3b_LOW_SharGrotto
+    ORI_Karlach_LeftPrisonAlone = "was left behind in the prison at Wyrm's Rock",             -- Act3_OriginMoments_Karlach
+    JaheiraHostile = "turned on you after her family was attacked",                           -- Act3b_LOW_JaheirasHouse
+    MinscHostile = "turned on you after Jaheira's family was attacked",                       -- Act3b_LOW_JaheirasHouse
+    GLO_Jaheira_Left = "left after her family was attacked",                                  -- GLO_Companion_Jaheira
+    LOW_BhaalTemple_Confrontation_DarkUrge = "left when you embraced Bhaal",                  -- Act3b_LOW_BhaalTemple
+}
+Guides.LeaveReasonsFor = {
+    -- GLO_Companion_Jaheira reuses Gale's reason when she is told to stay behind
+    Jaheira = { ORI_Gale_AbandonedBombNotDisarmed = "went after Minsc alone after you told her to stay behind" },
+}
+
+--- Why a lost companion is gone, as a sentence ("Karlach was left behind ..."), or nil.
+--- `detail` is what the tracker recorded: the index of one of the companion's `left`
+--- conditions, or the game's reason for removing them.
+function Guides.ExplainLost(comp, detail)
+    if not comp or detail == nil then return nil end
+    if type(detail) == "number" then
+        local cond = comp.left[detail]
+        if not cond then return nil end
+        return "Why: " .. Guides.Explain(cond, comp, "fail") .. "."
+    end
+    local own = Guides.LeaveReasonsFor[comp.id]
+    local text = (own and own[detail]) or Guides.LeaveReasons[detail]
+    if not text then return nil end
+    return comp.name .. " " .. text .. "."
+end
+
+-- -----------------------------------------------------------------------------
 -- Load companion data (display order = sidebar order)
 -- -----------------------------------------------------------------------------
 Guides.Order = {

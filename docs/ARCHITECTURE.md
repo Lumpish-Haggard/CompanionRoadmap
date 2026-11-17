@@ -53,21 +53,42 @@ Both bootstraps load `Shared/Core.lua`, `Data/Flags.lua`, `Data/CompanionGuides.
 
 The status rules are documented in [DATA_FORMAT.md](DATA_FORMAT.md#how-a-status-is-decided).
 
+### Choice memory
+
+The probes above only see what is still in the save. Some of it disappears later: the game purges a companion's romance flags when they leave, drops Minthara's "knocked out" record once she is moved to Moonrise, and clears some flags as soon as a conversation ends. `Tracker/Memory.lua` keeps what the tracker has seen, in the mod variable `Memory` of each savegame:
+
+```lua
+{ v = 1,
+  facts = { ["<flag guid>@<target guid>"] = 2, ["ko@<companion guid>"] = 1 },   -- seen true, first in this act
+  left  = { ["<companion guid>"] = { r = "ORI_Karlach_LeftPrisonAlone", a = 3 } } }  -- the game's reason, act
+```
+
+- **Written** when a snapshot reads a flag as set or sees a companion knocked out, when a watched flag is set (`FlagSet`), and when the story's `PROC_Origins_CompanionLeavePermanently(companion, reason)` runs. Facts first seen while a snapshot is still working out the act (the progress flags themselves) are stamped with the act once it is known. After a change the whole table is reassigned, which is what makes `Ext.Vars` store it.
+- **Read** in a second pass over a step's `done` conditions, only when the first pass found nothing and none of the step's `fail` conditions holds. A remembered condition makes the step DONE and sends the act it was seen in as a third value. It outranks `skip` and the guesses (gone for good, window closed, not seen), and can never make a step MISSED.
+- `left` says why a companion is gone (`Guides.LeaveReasons`, shown on their page). A companion who is back in the team clears their entry. `!roadmap forget` empties the memory of the current save.
+
+### Patch-day check
+
+On the first ready state of a session, `Srv.CheckGameData` looks up every flag in `Data/Flags.lua` with `Ext.StaticData.Get(guid, "Flag")`. When at least 80% are found, the lookup is trusted and the missing ones are named in the console, sent in the snapshot (`gone`) so the window shows a warning, and written into report files. Below that, the lookup itself is assumed not to work in this Script Extender build, and nothing is reported.
+
 ### Snapshot (server -> client)
 
 ```lua
 {
-  p = 1, v = "1.0.0", ready = true,
+  p = 2, v = "1.1.0", ready = true,
   avatar = "<guid>", level = "SCL_Main_A", region = "Shadow-Cursed Lands", act = 2,
   markers = { act1Locked = false, colony = false, ... },
-  steps = { SH_A1_PARTY = { "D", 2 }, MIN_A1_KO = { "M", -1 }, ... },  -- status, evidence index
+  steps = { SH_A1_PARTY = { "D", 2 }, MIN_A1_KO = { "M", -1 }, MIN_A1_RAID = { "D", 1, 1 }, ... },
+                                                     -- status, evidence index, act it is remembered from
   comps = { Shadowheart = { rec = true, a = 47, rel = "dating", dead = false, lost = false,
                             cnt = { nightsong = { bits = {1,0,1,0,0,0}, reached = false } } }, ... },
-  ov = { SH_A1_IDOL = true },                                           -- manual check-offs
+  ov = { SH_A1_IDOL = true },                        -- manual check-offs
+  mem = 12,                                          -- facts and departures remembered
+  gone = 3,                                          -- watched flags missing from the game (only when > 0)
 }
 ```
 
-The evidence index points into the step's `done` list (positive) or `fail` list (negative), so the client can say *why* a step has its status without the server sending text.
+The evidence index points into the step's `done` list (positive) or `fail` list (negative), so the client can say *why* a step has its status without the server sending text. For a lost companion, `lb` in their summary is what explains it: the index of one of their `left` conditions, or the game's own reason.
 
 ## Synchronisation
 
@@ -86,6 +107,7 @@ The server maps a peer to its avatar with `GetReservedUserID` on `DB_Avatars` (f
 | What | Where | Scope |
 |---|---|---|
 | Manual check-offs | mod variable `Overrides` (`Ext.Vars.RegisterModVariable`, persistent) | per savegame |
+| Choice memory | mod variable `Memory` (same) | per savegame |
 | Settings, hotkey, last companion | `Script Extender/CompanionRoadmap/settings.json` (`Ext.IO`) | per user |
 | Settings (when MCM is installed) | mirrored to MCM; changes in either place sync both ways | per MCM profile |
 | Window size/position | ImGui's own `imgui.ini` (sizes use `FirstUseEver`) | per user |
@@ -106,11 +128,15 @@ The server maps a peer to its avatar with `GetReservedUserID` on `DB_Avatars` (f
 
 ## Portraits
 
-`Public/CompanionRoadmap/Content/UI/[PAK]_UI/_merged.lsx` declares one texture resource per companion. Each resource only points at a Photo Mode sticker inside the game's own `Game.pak`, so the mod ships no art. `pack.ps1` converts the file to `.lsf`. `UI/Theme.lua` (`T.Portraits`) maps companions to the resource ids and `AddImage` draws them. A texture that fails to load draws nothing, so pictures always sit in their own table cell and never anchor the layout. `build_data.py` checks that the ids match and, with the game cache, that every referenced sticker exists.
+`Public/CompanionRoadmap/Content/UI/[PAK]_UI/_merged.lsx` declares the texture resources: a few per companion, one for each mood the game has a sticker for. Each resource only points at a Photo Mode sticker inside the game's own `Game.pak`, so the mod ships no art. `pack.ps1` converts the file to `.lsf`.
+
+`UI/Theme.lua` holds the rest. `T.Portraits` maps each companion to `{ mood = resource id }`. `T.Mood(c)` picks the mood from the snapshot's summary of the companion, in this order: dead, partnered, dating, then approval (`high` from 41, the game's "High" tier; `low` from -20, its "Low" tier), else neutral. A companion who left for good but is alive counts as `low`, and is drawn faded. `T.PortraitFor` applies the fallbacks for moods without a sticker (partnered -> dating -> high -> neutral, low -> neutral). Only Lae'zel has a "dead" sticker; everyone else shows the game's own dead-status icon, named in `T.GameIcons` and drawn straight from the game's UI icon atlas.
+
+`AddImage` draws both kinds: the extender tries its argument as an atlas icon name first, then as a texture resource id. An existing image cannot be re-pointed, so the picture is rebuilt when the mood changes. An unknown name or a texture that fails to load draws nothing, without an error, so pictures always sit in their own table cell and never anchor the layout. That is also why `build_data.py` checks everything it can: the ids against the texture bank, and with the game cache every sticker file and icon name against the game.
 
 ## Report file
 
-`!roadmap report` and *Options > Create a report file* make the server write `Script Extender/CompanionRoadmap/report.json`: the snapshot, every watched flag and journal step that is set (probed on every target the flag allows), the raw per-companion facts (dead, permanently defeated, in the team, knocked out, approval, dating, partnered) and the camp scheduler tables. It holds game identifiers only. `tools/test_harness.py` can rebuild a world from a report (`replay_report`), which turns bug reports into regression tests: put the file in `tests/fixtures/` and optionally add an `"expect": { "STEP_ID": "D" }` object.
+`!roadmap report` and *Options > Create a report file* make the server write `Script Extender/CompanionRoadmap/report.json`: the snapshot, every watched flag and journal step that is set (probed on every target the flag allows), the raw per-companion facts (dead, permanently defeated, in the team, knocked out, approval, dating, partnered), the camp scheduler tables, the choice memory and any flags the patch-day check could not find. It holds game identifiers only. `tools/test_harness.py` can rebuild a world from a report (`replay_report`), which turns bug reports into regression tests: put the file in `tests/fixtures/` and optionally add an `"expect": { "STEP_ID": "D" }` object.
 
 ## Hotkey
 
@@ -118,7 +144,7 @@ With MCM: the `toggle_roadmap` keybinding (`MCM.Keybinding.SetKeyDownCallback`) 
 
 ## Script Extender APIs used
 
-`Ext.Net.CreateChannel` (v22+), `Ext.IMGUI` (windows, child windows, tab bars, trees, tables, tooltips, selectables, combos, progress bars, `LoadFont`), `Ext.Vars.RegisterModVariable`, `Ext.Osiris.RegisterListener`, `Ext.Timer.WaitForRealtime`, `Ext.IO.LoadFile/SaveFile`, `Ext.Events` (`SessionLoaded`, `GameStateChanged`, `KeyInput`, `ResetCompleted`), `Ext.RegisterConsoleCommand`. `Config.json` requires v25.
+`Ext.Net.CreateChannel` (v22+), `Ext.IMGUI` (windows, child windows, tab bars, trees, tables, tooltips, selectables, combos, progress bars, `LoadFont`), `Ext.Vars.RegisterModVariable`, `Ext.Osiris.RegisterListener` (events, and the user-defined `PROC_Origins_CompanionLeavePermanently`), `Ext.StaticData.Get`, `Ext.Timer.WaitForRealtime`, `Ext.IO.LoadFile/SaveFile`, `Ext.Events` (`SessionLoaded`, `GameStateChanged`, `KeyInput`, `ResetCompleted`), `Ext.RegisterConsoleCommand`. `Config.json` requires v25.
 
 ## Testing
 
@@ -126,6 +152,7 @@ With MCM: the `toggle_roadmap` keybinding (`MCM.Keybinding.SetKeyDownCallback`) 
 
 - The IMGUI mock is generated from BG3SE's property map (`GameDefinitions/PropertyMaps/IMGUI.inl`). Unknown element types, properties, colour slots, style variables or conditions, unknown fonts, duplicate interactive ids, too many table cells, access to destroyed elements and non-Latin-1 text all raise errors. Every such error is also recorded, so a test fails even when the mod's own `pcall` swallowed it.
 - A fake Osiris world provides flags, journal steps, databases and approval; messages travel between the states as JSON, with a simulated clock for timers.
-- Scenarios cover boot, live updates and notifications, every UI interaction, the window layout (fonts, act sections, next-step highlight, warning links, filters), the Act 1 lock-out, Minthara's knockout and dependencies, origin characters, console commands and MCM integration.
+- Scenarios cover boot, live updates and notifications, every UI interaction, the window layout (fonts, act sections, next-step highlight, warning links, filters), the Act 1 lock-out, Minthara's knockout and dependencies, origin characters, console commands, MCM integration, the choice memory (including a save that is reloaded from the stored mod variable), the patch-day check and the mood portraits.
+- `tools/build_data.py`, with the local game-data cache present, also compares every step that is completed by a camp scene with the game's camp-scene scheduler (`DB_CampNight_Requirement_*`, `DB_CampNight_CancelledBy`): approval thresholds (a scene that starts a romance asks for strictly more than its stored value), scenes that need you to be dating or partnered (a step in the `after` chain must establish it), and what cancels a scene when that scene is the step's only way to be done.
 
 The harness cannot prove rendering or real Osiris behaviour: changes that touch either should also be tried in game.

@@ -208,15 +208,36 @@ def check_portraits(errors, warnings, cache):
     theme = os.path.join(LUA_DIR, "UI", "Theme.lua")
     theme_src = open(theme, encoding="utf-8").read()
     block = re.search(r'T\.Portraits = \{(.*?)\n\}', theme_src, re.S)
-    wanted = dict(re.findall(r'(\w+)\s*=\s*"([0-9a-f-]{36})"', block.group(1))) if block else {}
+    # T.Portraits = { <Companion> = { <mood> = "<texture id>", ... }, ... }
+    moods = ("neutral", "high", "low", "dating", "partnered", "dead")
+    wanted = {}
+    for comp, inner in re.findall(r'(\w+)\s*=\s*\{([^{}]*)\}', block.group(1)) if block else []:
+        wanted[comp] = dict(re.findall(r'(\w+)\s*=\s*"([0-9a-f-]{36})"', inner))
     if not wanted:
         return
-    # optional pictures shown while a companion is dead
-    dead_block = re.search(r'T\.PortraitsDead = \{(.*?)\n\}', theme_src, re.S)
-    dead = dict(re.findall(r'(\w+)\s*=\s*"([0-9a-f-]{36})"', dead_block.group(1))) if dead_block else {}
-    for name in sorted(set(dead) - set(wanted)):
-        errors.append(f"{rel(theme)}: T.PortraitsDead has '{name}', which has no normal portrait")
-    all_used = {**{k: v for k, v in wanted.items()}, **{k + " (dead)": v for k, v in dead.items()}}
+    all_used = {}
+    for comp, pictures in sorted(wanted.items()):
+        if "neutral" not in pictures:
+            errors.append(f"{rel(theme)}: portrait set '{comp}' has no 'neutral' picture")
+        for mood, guid in pictures.items():
+            if mood not in moods:
+                errors.append(f"{rel(theme)}: portrait set '{comp}' has an unknown mood '{mood}'")
+            all_used[f"{comp}.{mood}"] = guid
+
+    # game UI icons used by name (the skull for a dead companion without a sticker of their own)
+    icons_block = re.search(r'T\.GameIcons = \{(.*?)\n\}', theme_src, re.S)
+    game_icons = dict(re.findall(r'(\w+)\s*=\s*"([^"]+)"', icons_block.group(1))) if icons_block else {}
+    if "dead" not in game_icons and any("dead" not in p for p in wanted.values()):
+        errors.append(f"{rel(theme)}: T.GameIcons.dead is needed for companions without a 'dead' picture")
+    icons_list = os.path.join(cache, "icons.txt") if cache else None
+    if icons_list and os.path.exists(icons_list):
+        known_icons = {line.strip() for line in open(icons_list, encoding="utf-8") if line.strip()}
+        for key, name in sorted(game_icons.items()):
+            if name not in known_icons:
+                errors.append(f"{rel(theme)}: T.GameIcons.{key} = '{name}' is not an icon in the game's UI atlases")
+    elif cache and game_icons:
+        warnings.append("tools/.cache/icons.txt is missing: run tools/extract_game_data.py --only icons "
+                        "to check the game icon names")
     if not os.path.exists(TEXTURE_BANK):
         errors.append(f"{rel(theme)}: T.Portraits is defined but {rel(TEXTURE_BANK)} does not exist")
         return
@@ -240,7 +261,7 @@ def check_portraits(errors, warnings, cache):
         if guid not in bank:
             errors.append(f"{rel(theme)}: portrait '{name}' uses {guid}, which is not declared in {rel(TEXTURE_BANK)}")
     for guid in sorted(set(bank) - set(all_used.values())):
-        warnings.append(f"{rel(TEXTURE_BANK)}: resource {guid} is not used by T.Portraits or T.PortraitsDead")
+        warnings.append(f"{rel(TEXTURE_BANK)}: resource {guid} is not used by T.Portraits")
 
     order = re.search(r'Guides\.Order = \{(.*?)\}', open(os.path.join(DATA_DIR, "CompanionGuides.lua"), encoding="utf-8").read(), re.S)
     for comp in re.findall(r'"(\w+)"', order.group(1)) if order else []:
@@ -253,6 +274,224 @@ def check_portraits(errors, warnings, cache):
         for guid, source in sorted(bank.items()):
             if source not in known:
                 errors.append(f"{rel(TEXTURE_BANK)}: '{source}' does not exist in the game's Game.pak")
+
+
+# -----------------------------------------------------------------------------
+# Cross-check with the game's camp scheduler (GLO_CampNights and the goals that
+# declare camp scenes). A step that is done when a NIGHT_* camp scene has played
+# must agree with what the scheduler requires for that scene.
+# -----------------------------------------------------------------------------
+GUID_PART = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+OSIRIS_CAST = re.compile(r"\((?:FLAG|CHARACTER|DIALOGRESOURCE|INTEGER|STRING|GUIDSTRING|TRIGGER)\)")
+
+
+def load_camp_scheduler(goals_dir):
+    """The scheduler's facts about camp scenes, from the story goals (save patches and debug goals skipped)."""
+    s = {"approval": {}, "startDating": set(), "partner": set(), "dating": set(), "cancel": defaultdict(set)}
+    night = r"(NIGHT_\w+?)_" + GUID_PART
+    who = r"\w+?_(" + GUID_PART + r")"
+    rx = {
+        "approval": re.compile(r"DB_CampNight_Requirement_Approval\(\s*" + night + r"\s*,\s*" + who + r"\s*,\s*(-?\d+)\s*\)"),
+        "who": re.compile(r"DB_CampNight_Requirement_(Partner|Dating|CanStartDating)\(\s*" + night + r"\s*,\s*" + who + r"\s*\)"),
+        "cancel": re.compile(r"DB_CampNight_CancelledBy\(\s*" + night + r"\s*,\s*(\w+?)_" + GUID_PART + r"\s*\)"),
+    }
+    kinds = {"Partner": "partner", "Dating": "dating", "CanStartDating": "startDating"}
+    for root, _, files in os.walk(goals_dir):
+        for fn in files:
+            if "SavegamePatches" in fn or "Debug" in fn:
+                continue
+            with open(os.path.join(root, fn), encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    line = OSIRIS_CAST.sub("", line.strip())
+                    if not line.startswith("DB_CampNight_"):
+                        continue
+                    m = rx["approval"].match(line)
+                    if m:
+                        s["approval"].setdefault(m.group(1), {})[m.group(2)] = int(m.group(3))
+                        continue
+                    m = rx["who"].match(line)
+                    if m:
+                        s[kinds[m.group(1)]].add((m.group(2), m.group(3)))
+                        continue
+                    m = rx["cancel"].match(line)
+                    if m:
+                        s["cancel"][m.group(1)].add(m.group(2))
+    return s
+
+
+def strip_lua_comments(text):
+    """Lua source without comments (string literals kept intact)."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if c in "\"'":
+            j = i + 1
+            while j < n and text[j] != c:
+                j += 2 if text[j] == "\\" else 1
+            out.append(text[i:j + 1])
+            i = j + 1
+        elif text.startswith("--", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+def lua_block_at(text, start):
+    """The balanced {...} block whose opening brace is at `start` (string literals respected)."""
+    depth, i, n = 0, start, len(text)
+    while i < n:
+        c = text[i]
+        if c in "\"'":
+            j = i + 1
+            while j < n and text[j] != c:
+                j += 2 if text[j] == "\\" else 1
+            i = j + 1
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+        i += 1
+    raise ValueError("unbalanced braces")
+
+
+def lua_top_level_items(block):
+    """The comma-separated entries of a {...} block, split at depth 0."""
+    inner, items, depth, cur, i = block[1:-1], [], 0, [], 0
+    while i < len(inner):
+        c = inner[i]
+        if c in "\"'":
+            j = i + 1
+            while j < len(inner) and inner[j] != c:
+                j += 2 if inner[j] == "\\" else 1
+            cur.append(inner[i:j + 1])
+            i = j + 1
+            continue
+        if c in "({":
+            depth += 1
+        elif c in ")}":
+            depth -= 1
+        if c == "," and depth == 0:
+            items.append("".join(cur).strip())
+            cur = []
+        else:
+            cur.append(c)
+        i += 1
+    if "".join(cur).strip():
+        items.append("".join(cur).strip())
+    return items
+
+
+def parse_guide_steps():
+    """Steps of every companion file: id -> { comp uuid, approval, closes, after, done, fail, skip }."""
+    steps = {}
+    comp_dir = os.path.join(DATA_DIR, "Companions")
+    for fn in sorted(os.listdir(comp_dir)):
+        if not fn.endswith(".lua"):
+            continue
+        text = strip_lua_comments(open(os.path.join(comp_dir, fn), encoding="utf-8").read())
+        uuid = re.search(r'\buuid\s*=\s*"(' + GUID_PART + r')"', text)
+        sm = re.search(r"\bsteps\s*=\s*\{", text)
+        if not uuid or not sm:
+            continue
+        body = lua_block_at(text, sm.end() - 1)
+        i = 1
+        while True:
+            j = body.find("{", i)
+            if j < 0:
+                break
+            blk = lua_block_at(body, j)
+            i = j + len(blk)
+            sid = re.search(r'\bid\s*=\s*"(\w+)"', blk)
+            if not sid:
+                continue
+
+            def field(name):
+                m = re.search(r"\b" + name + r"\s*=\s*\{", blk)
+                return lua_block_at(blk, m.end() - 1) if m else "{}"
+            approval = re.search(r"\bapproval\s*=\s*(\d+)", blk)
+            closes = re.search(r'\bcloses\s*=\s*"(\w+)"', blk)
+            steps[sid.group(1)] = {
+                "file": fn, "uuid": uuid.group(1), "approval": int(approval.group(1)) if approval else None,
+                "closes": closes.group(1) if closes else None, "after": re.findall(r'"(\w+)"', field("after")),
+                "done": field("done"), "fail": field("fail"), "skip": field("skip"),
+            }
+    return steps
+
+
+PARTNER_EVIDENCE = re.compile(r'ORI_State_PartneredWith|C\.Rel\("partnered"\)')
+DATING_EVIDENCE = re.compile(r'ORI_State_Dating|ORI_State_PartneredWith|C\.Rel\("(?:partnered|dating)"\)')
+
+
+def check_scheduler(errors, warnings, goals_dir):
+    """Steps that are done when a camp scene played, compared with the scheduler's rules for that scene:
+    - approval: the step's `approval` is what the scheduler asks (strictly above it for a scene that starts a romance)
+    - partner / dating: a scene that needs a relationship must come after a step that establishes it
+    - cancelled by: when the scene is the step's only route, whatever cancels it must close the step too"""
+    sched = load_camp_scheduler(goals_dir)
+    steps = parse_guide_steps()
+    guides = strip_lua_comments(open(os.path.join(DATA_DIR, "CompanionGuides.lua"), encoding="utf-8").read())
+    mstart = guides.index("Guides.Markers = {") + len("Guides.Markers = ")
+    markers = dict(re.findall(r'(\w+)\s*=\s*"(\w+)"', lua_block_at(guides, mstart)))
+    deadlines = re.findall(r'id\s*=\s*"(\w+)",\s*marker\s*=\s*"(\w+)"', guides)
+    order = [d for d, _ in deadlines]
+    deadline_flag = {d: markers.get(m) for d, m in deadlines}
+
+    def closure(sid, seen):
+        if sid in seen or sid not in steps:
+            return seen
+        seen.add(sid)
+        for dep in steps[sid]["after"]:
+            closure(dep, seen)
+        return seen
+
+    for sid, st in sorted(steps.items()):
+        where = f"Data/Companions/{st['file']} {sid}"
+        nights = re.findall(r'"(NIGHT_\w+)"', st["done"])
+        if not nights:
+            continue
+        routes = lua_top_level_items(st["done"])
+        only_nights = all(re.fullmatch(r'G\("NIGHT_\w+"\)', r) for r in routes)
+        uuid = st["uuid"]
+
+        # approval: a scene that starts a romance asks for strictly more than its value
+        needs = {}
+        for n in nights:
+            req = sched["approval"].get(n, {}).get(uuid)
+            if req is not None:
+                needs[n] = req + 1 if (n, uuid) in sched["startDating"] else req
+        if st["approval"] is not None and needs and st["approval"] not in needs.values():
+            found = ", ".join(f"{n} needs {v}" for n, v in sorted(needs.items()))
+            errors.append(f"{where}: approval = {st['approval']}, but the game's camp scheduler says {found}")
+        if st["approval"] is None and only_nights and len(needs) == len(nights):
+            found = ", ".join(f"{n} needs {v}" for n, v in sorted(needs.items()))
+            warnings.append(f"{where}: has no approval, but the game's camp scheduler says {found}")
+
+        # partner / dating: the step itself or one it waits for must establish the relationship
+        chain = closure(sid, set())
+        for n in nights:
+            for kind, evidence, state in (("partner", PARTNER_EVIDENCE, "their partner"),
+                                          ("dating", DATING_EVIDENCE, "dating them")):
+                if (n, uuid) in sched[kind] and not any(evidence.search(steps[s]["done"]) for s in chain):
+                    warnings.append(f"{where}: {n} only plays while you are {state}, but neither this step nor "
+                                    f"any step in its 'after' chain establishes that")
+
+        # cancelled by: only matters when the scene is the step's only way to be done
+        if not only_nights:
+            continue
+        later = order[order.index(st["closes"]):] if st["closes"] in order else []
+        closed_by = {deadline_flag[d] for d in later if deadline_flag.get(d)}
+        for n in nights:
+            for flag in sorted(sched["cancel"].get(n, ())):
+                quoted = '"' + flag + '"'
+                if flag in nights or quoted in st["fail"] or quoted in st["skip"] or quoted in st["done"] or flag in closed_by:
+                    continue
+                warnings.append(f"{where}: {n} is cancelled by {flag}, which the step neither fails, skips nor closes on")
 
 
 def check_metadata(errors):
@@ -363,6 +602,8 @@ def main():
     used_flags, used_quests, used_steps = {}, set(), set()
     check_metadata(errors)
     check_portraits(errors, warnings, None if args.offline else args.cache)
+    if not args.offline and os.path.isdir(os.path.join(args.cache, "goals")):
+        check_scheduler(errors, warnings, os.path.join(args.cache, "goals"))
     if quest_steps is not None and not step_handles:
         warnings.append("tools/.cache/quests.tsv has no localisation handles - run tools/extract_game_data.py again")
 

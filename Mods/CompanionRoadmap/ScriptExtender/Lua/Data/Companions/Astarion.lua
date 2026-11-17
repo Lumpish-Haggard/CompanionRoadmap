@@ -178,11 +178,12 @@ CR.Guides.Register {
             title = "Romance: after the Black Mass",
             where = "Camp, first long rest after Cazador",
             todo = {
+                "Requires: still being his partner when you long rest after Cazador.",
                 "Spawn path: he takes you to his grave and says he wants to stay with you.",
                 "Ascended path: he offers to make you his vampire spawn - refusing ends the relationship.",
             },
             done = { G("NIGHT_Astarion_BlackMassAftermath") },
-            after = { "AST_A3_CAZADOR" },
+            after = { "AST_A3_CAZADOR", "AST_A2_CONFESSION" },
             closes = "endgame",
         },
     },

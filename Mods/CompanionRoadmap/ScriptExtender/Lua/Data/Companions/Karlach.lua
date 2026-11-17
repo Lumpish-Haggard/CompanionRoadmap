@@ -129,8 +129,13 @@ CR.Guides.Register {
             id = "KAR_A1_COOL", act = 1, kind = "romance", romance = true, optional = true,
             title = "Romance: find a way to cool her down",
             where = "Camp",
-            todo = { "When she asks if you found a way to touch her, cool her with frost or water magic (Ray of Frost, Create Water...) for a brief touch." },
-            done = { G("NIGHT_Karlach_CoolingDownForYou") },
+            todo = {
+                "After the first romance scene, tell her you would love to touch her. Later at camp she asks if you found a way - tell her you have an idea.",
+                "Then, before your next long rest, make her or yourself Wet (Create Water) or hit her with cold damage (Ray of Frost) for a brief touch.",
+            },
+            avoid = { "Long resting before you try it - the game drops the idea you gave her." },
+            -- set when the cooling scene itself starts; her camp night only asks the question
+            done = { G("ORI_Karlach_State_BlockCoolingDownForYou") },
             after = { "KAR_A1_ROMANCE" },
             closes = "act3",
         },

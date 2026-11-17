@@ -273,13 +273,13 @@ CR.Guides.Register {
             title = "Romance (Selune path): the night swim",
             where = "Act 3 camp (long rest)",
             todo = {
-                "Requires: she spared Nightsong, you know she cannot swim (Act 1 wolf talk) and 40+ approval.",
+                "Requires: being her partner, she spared Nightsong, you know she cannot swim (Act 1 wolf talk) and 40+ approval.",
                 "Accept her invitation to sneak away to the water.",
             },
             rewards = "One of her best romance scenes; she remembers it in later dialogue.",
             done = { G("NIGHT_Shadowheart_Skinnydipping"), C.F("ORI_Shadowheart_Event_SkinnyDippingRomanceScene", "any") },
             skip = { G("ORI_Shadowheart_State_SharPath") },
-            after = { "SH_A1_WOLF" },
+            after = { "SH_A1_WOLF", "SH_A2_PARTNER" },
             closes = "endgame",
         },
         {
@@ -291,6 +291,7 @@ CR.Guides.Register {
             done = { G("NIGHT_Shadowheart_SharRomance") },
             fail = { G("ORI_Shadowheart_State_ConcludedGrotto") },
             skip = { G("ORI_Shadowheart_State_EnemyOfSharPath") },
+            after = { "SH_A2_PARTNER" },
             closes = "endgame",
         },
         {
@@ -363,7 +364,7 @@ CR.Guides.Register {
             },
             done = { G("NIGHT_Shadowheart_NightfallRitual"), C.F("ORI_Shadowheart_Event_NightfallRomanceScene", "any") },
             skip = { G("ORI_Shadowheart_State_EnemyOfSharPath"), Q(SH, "SharPath_SavedParents") },
-            after = { "SH_A3_PARENTS" },
+            after = { "SH_A3_PARENTS", "SH_A2_PARTNER" },
             closes = "endgame",
         },
     },

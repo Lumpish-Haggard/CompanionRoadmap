@@ -31,34 +31,99 @@ T.Clear = { 0, 0, 0, 0 }
 T.NextRowBg = { 0.84, 0.71, 0.48, 0.07 }   -- faint gold band behind the NEXT step
 T.BarTrack = { 0.84, 0.71, 0.48, 0.14 }    -- empty part of a progress bar (visible at 0%)
 
--- Companion pictures: texture resources declared in
--- Public/CompanionRoadmap/Content/UI/[PAK]_UI/_merged.lsx. Each one points at a
--- Photo Mode sticker that ships with the game; the mod contains no art.
--- The pictures do not change with the companion's state (the window tints them
--- instead), so none of them may look dead, hurt or in love by itself.
+-- Companion pictures follow the companion's mood (see T.Mood). Each id is a texture
+-- resource declared in Public/CompanionRoadmap/Content/UI/[PAK]_UI/_merged.lsx,
+-- which points at a Photo Mode sticker that ships with the game; the mod contains
+-- no art. The game only has a few stickers per companion, so a mood without one
+-- falls back: partnered -> dating -> high -> neutral, and low -> neutral.
 T.Portraits = {
-    Shadowheart = "0ce9a128-57d6-4f4e-83d6-fe906dbf7fdb",
-    Minthara = "bdf80ba4-8588-4da9-a9f6-36234531351f",
-    Karlach = "9a9e58b9-0cef-456c-b144-c0fdf72b0e7f",
-    Laezel = "f1402f27-146a-4547-a180-da04899ce7e2",          -- "Laezel Alien" emoji
-    Astarion = "88bd30e6-e429-49f3-8563-0b2ad988f38d",
-    Gale = "8ff0524f-c546-4575-a4c3-90b2be611ecd",
-    Wyll = "d0a076ad-e9d5-4b4f-b60f-f3b43bd70599",
-    Halsin = "bd88c2d7-ecb0-4f35-80ce-37dfc2aee807",
-    Jaheira = "1640ca1a-5238-45ab-a9f3-a6888c453d1f",
-    Minsc = "586db842-cbd1-4045-8a2f-4bd73a1689e2",
+    Shadowheart = {
+        neutral = "141b93fc-e601-44e3-aa63-d4d420720467",   -- Emoji "Shadowheart Eyeroll"
+        high    = "bdea98bd-259d-4261-8443-32b8da50f796",   -- Emoji "Shadowheart Happy"
+        low     = "0ce9a128-57d6-4f4e-83d6-fe906dbf7fdb",   -- "Shadowheart_Grr"
+    },
+    Minthara = {
+        neutral = "0e8642bb-0ad9-428e-9fe9-8d32419df62d",   -- Emoji "Minthara Devil"
+        low     = "bdf80ba4-8588-4da9-a9f6-36234531351f",   -- "Minthara_Stress"
+    },
+    Karlach = {
+        neutral = "9a9e58b9-0cef-456c-b144-c0fdf72b0e7f",   -- "Karlach_Hmph"
+        low     = "f5470f37-3698-4f2e-b9e7-096c0f6ded17",   -- Emoji "Karlach Angy"
+    },
+    Laezel = {
+        neutral = "f1402f27-146a-4547-a180-da04899ce7e2",   -- Emoji "Laezel Alien"
+        low     = "240be757-8bca-4175-a502-89260e2a73ee",   -- Emoji "Laezel Istik"
+        dead    = "578f10d3-8627-4f69-bdc0-5188b968db1f",   -- "LaeZel_Dead"
+    },
+    Astarion = {
+        neutral   = "ce8e5c46-c0e7-45ed-936c-ab02a1c092fb", -- Emoji "Astarion Drool"
+        dating    = "97f5bd9b-9d65-41b4-9021-a1d7e64ff7ec", -- Emoji "Astarion Heart"
+        partnered = "88bd30e6-e429-49f3-8563-0b2ad988f38d", -- "Astarion-Love"
+    },
+    Gale = {
+        neutral = "8ff0524f-c546-4575-a4c3-90b2be611ecd",   -- "Gale_Wink"
+        dating  = "8ff0524f-c546-4575-a4c3-90b2be611ecd",   -- the wink again: it suits a romance better than the laugh
+        high    = "e3e3757c-9519-467b-aa41-c17f8817856f",   -- Emoji "Gale Laugh"
+        low     = "17457698-7a01-46ac-b99d-f3cf88ffe084",   -- Emoji "Gale Plead"
+    },
+    Wyll = {
+        neutral = "d0a076ad-e9d5-4b4f-b60f-f3b43bd70599",   -- "Wyll_Smile"
+        dating  = "46310ac2-a65d-40e4-8434-85970fe5b12c",   -- Emoji "Wyll Kiss"
+    },
+    Halsin = {
+        neutral = "bd88c2d7-ecb0-4f35-80ce-37dfc2aee807",   -- "Halsin_Cool"
+        dating  = "d444909d-baf5-4484-88bd-655ed95539cb",   -- Emoji "Halsin Smirk"
+    },
+    Jaheira = { neutral = "1640ca1a-5238-45ab-a9f3-a6888c453d1f" },   -- "Jaheira_Smile"
+    Minsc = { neutral = "586db842-cbd1-4045-8a2f-4bd73a1689e2" },     -- "Minc_Oh"
 }
 
--- Shown instead while the companion is dead, where the game has such a sticker.
-T.PortraitsDead = {
-    Laezel = "578f10d3-8627-4f69-bdc0-5188b968db1f",          -- "LaeZel_Dead"
+-- Icons from the game's own UI atlas (not stickers), by name. `dead` is the red
+-- skull the game shows on a dead character: the picture of every dead companion
+-- who has no "dead" sticker of their own. tools/build_data.py checks the names.
+T.GameIcons = {
+    dead = "statIcons_Dead",
 }
+
+-- Approval at which the picture turns warm or sour: the game's own "High" and
+-- "Low" approval tiers start here (see CR.ApprovalTiers).
+T.MoodHigh = 41
+T.MoodLow = -20
+
+--- The mood a companion's picture shows, from the snapshot's summary of them:
+--- "dead", "partnered", "dating", "high", "low" or "neutral".
+function T.Mood(c)
+    if type(c) ~= "table" or c.you then return "neutral" end
+    if c.dead then return "dead" end
+    if c.lost then return "low" end                 -- alive but gone for good: not on good terms
+    if c.rel == "partnered" then return "partnered" end
+    if c.rel == "dating" then return "dating" end
+    if c.rec and type(c.a) == "number" then
+        if c.a >= T.MoodHigh then return "high" end
+        if c.a <= T.MoodLow then return "low" end
+    end
+    return "neutral"
+end
+
+local MOOD_FALLBACK = { partnered = "dating", dating = "high", high = "neutral", low = "neutral" }
+
+--- The picture for a companion in a mood: a texture resource id, or a game icon name.
+function T.PortraitFor(compId, mood)
+    local set = T.Portraits[compId]
+    if not set then return nil end
+    local m = mood
+    while m do
+        if set[m] then return set[m] end
+        if m == "dead" then return T.GameIcons.dead end
+        m = MOOD_FALLBACK[m]
+    end
+    return set.neutral
+end
 
 -- Picture tints. IMGUI multiplies the texture by these.
 T.PortraitTint = {
     normal = { 1, 1, 1, 1 },
-    dead = { 1.0, 0.42, 0.38, 0.9 },     -- dead, can still be revived: red
-    lost = { 0.45, 0.45, 0.45, 0.4 },    -- gone for this playthrough: dark and faded
+    lost = { 0.45, 0.45, 0.45, 0.4 },    -- alive but gone for this playthrough: dark and faded
 }
 
 -- Latin-1 punctuation used as ornaments

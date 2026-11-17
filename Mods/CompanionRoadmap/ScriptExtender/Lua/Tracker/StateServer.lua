@@ -99,8 +99,43 @@ function Srv.CheckReady()
     local host = osi(Osi.GetHostCharacter)
     if type(host) == "string" and host ~= "" and CR.Eval.CurrentLevel(host) then
         Srv.Ready = true
+        CR.Guard("game data check", Srv.CheckGameData)
     end
     return Srv.Ready
+end
+
+-- -----------------------------------------------------------------------------
+-- Patch-day check: does the running game still have every flag the guide watches?
+-- A game update can remove or replace one; the step that relies on it would then
+-- silently stay "not seen". The game's flag registry is asked for each of them.
+-- The answer is only trusted when most are found: if hardly any are, the lookup
+-- itself does not work the way this code expects, and nothing is reported.
+-- -----------------------------------------------------------------------------
+Srv.MissingFlags = {}
+local TRUST_LOOKUP_ABOVE = 0.8
+
+function Srv.CheckGameData()
+    if Srv.GameDataChecked then return end
+    Srv.GameDataChecked = true
+    Srv.MissingFlags = {}
+    local get = Ext.StaticData and Ext.StaticData.Get
+    if not get then return end
+    local found, missing = 0, {}
+    for name, entry in pairs(CR.Flags or {}) do
+        local ok, res = pcall(get, entry[1], "Flag")
+        if ok and res ~= nil then found = found + 1 else table.insert(missing, name) end
+    end
+    local total = found + #missing
+    if #missing == 0 or total == 0 then return end
+    if found < total * TRUST_LOOKUP_ABOVE then
+        CR.Debug("game data check skipped: only %d of %d flags could be looked up", found, total)
+        return
+    end
+    table.sort(missing)
+    Srv.MissingFlags = missing
+    CR.Warn("%d of the %d flags this guide watches no longer exist in your game (a game update?). "
+        .. "Steps that rely on them cannot be detected until the mod is updated:", #missing, total)
+    for _, name in ipairs(missing) do CR.Warn("  %s", name) end
 end
 
 -- -----------------------------------------------------------------------------
@@ -194,6 +229,7 @@ function Srv.RefreshPeer(peer, forceSend)
     end
     local avatar = Srv.AvatarForPeer(peer)
     local snap = CR.Eval.BuildSnapshot(avatar, Srv.GetOverrides())
+    if #Srv.MissingFlags > 0 then snap.gone = #Srv.MissingFlags end   -- patch-day check
     if p.open or forceSend then
         local ok, err = pcall(function() CR.Net.State:SendToClient(snap, peer) end)
         if not ok then CR.Debug("send to %s failed: %s", tostring(peer), tostring(err)) end
@@ -269,9 +305,27 @@ local function isTrackedCharacter(ch)
     return g ~= nil and tracked[g] == true
 end
 
-local function onFlag(flag)
+--- A watched flag changed. When it was set, it is written into the choice memory at
+--- once: some flags are cleared again before the next snapshot is built.
+local function onFlag(flag, target, wasSet)
     local g = CR.Guid(flag)
-    if g and Guides.WatchedFlags[g] then Srv.MarkDirty() end
+    if not (g and Guides.WatchedFlags[g]) then return end
+    if wasSet and CR.Memory then
+        CR.Memory.Note(CR.Memory.FlagKey(g, target))
+        CR.Memory.Commit()
+    end
+    Srv.MarkDirty()
+end
+
+--- The game removed a companion for good and said why (second argument). Most of
+--- the places that do this write nothing to the journal, so the reason is kept.
+local function onLeftForGood(companion, reason)
+    local comp = Guides.ByUuid[CR.Guid(companion) or ""]
+    if not comp or not CR.Memory then return end
+    CR.Memory.NoteLeft(comp.uuid, reason)
+    CR.Memory.Commit()
+    CR.Debug("%s was removed for good: %s", comp.id, tostring(reason))
+    Srv.MarkDirty()
 end
 
 local function listen(event, arity, fn)
@@ -292,8 +346,10 @@ function Srv.Init()
         end)
     end)
 
-    listen("FlagSet", 3, function(flag) onFlag(flag) end)
-    listen("FlagCleared", 3, function(flag) onFlag(flag) end)
+    listen("FlagSet", 3, function(flag, target) onFlag(flag, target, true) end)
+    listen("FlagCleared", 3, function(flag, target) onFlag(flag, target, false) end)
+    -- a story procedure, not an event: the Script Extender can listen to those too
+    listen("PROC_Origins_CompanionLeavePermanently", 2, onLeftForGood)
     listen("QuestUpdateUnlocked", 3, function(_, quest)
         if Guides.WatchedQuests[quest] then Srv.MarkDirty() end
     end)
@@ -314,6 +370,7 @@ function Srv.Init()
     end)
     listen("LevelGameplayStarted", 2, function()
         Srv.Ready = false
+        if CR.Memory then CR.Memory.Load() end     -- the memory belongs to the save that just loaded
         Srv.CheckReady()
         -- the save just (re)loaded: rebuild baselines without toasting
         for _, p in pairs(Srv.Peers) do p.baseline = true end
@@ -451,6 +508,9 @@ function Srv.BuildReport(avatar)
         overrides = overrides,
         steps = snap.steps,
         raw = { flags = flags, quests = quests, companions = companions },
+        -- what the mod remembers from earlier in this save, and flags the game no longer has
+        memory = CR.Memory and CR.Memory.Export() or nil,
+        missingFlags = (#Srv.MissingFlags > 0) and Srv.MissingFlags or nil,
     }
 
     -- the camp scheduler, for the "tonight at camp" work (best effort)
@@ -480,7 +540,7 @@ function Srv.WriteReport(avatar)
 end
 
 -- -----------------------------------------------------------------------------
--- Console: !roadmap [diag|steps <Companion>|report|resetoverrides|debug]
+-- Console: !roadmap [diag|steps <Companion>|report|memory|forget|resetoverrides|debug]
 -- -----------------------------------------------------------------------------
 local STATUS_NAMES = {
     D = "done", O = "checked", N = "NEXT", A = "available", P = "pending",
@@ -499,6 +559,19 @@ function Srv.RegisterConsole()
             for _, p in pairs(Srv.Peers) do p.baseline = true end
             Srv.Flush()
             CR.Info("All manual check-offs cleared for this save.")
+        elseif sub == "memory" then
+            local m = CR.Memory and CR.Memory.Export() or { facts = {}, left = {} }
+            CR.Info("Remembered in this save: %d facts, %d departures.", CR.Count(m.facts), CR.Count(m.left))
+            for guid, entry in pairs(m.left) do
+                local comp = Guides.ByUuid[guid]
+                CR.Info("  %s was removed for good in Act %s: %s", comp and comp.name or guid, tostring(entry.a), entry.r)
+            end
+            CR.Info("  '!roadmap forget' clears it.")
+        elseif sub == "forget" then
+            if CR.Memory then CR.Memory.Forget() end
+            for _, p in pairs(Srv.Peers) do p.baseline = true end
+            Srv.Flush()
+            CR.Info("Everything the roadmap remembered in this save was forgotten. What the save still shows is unaffected.")
         elseif sub == "report" then
             local ok, info = Srv.WriteReport(Srv.AvatarForPeer(nil))
             if ok then

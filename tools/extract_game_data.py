@@ -8,6 +8,8 @@ Uses LSLib's Divine.exe to extract:
   * the Osiris story goals (Story/RawFiles/Goals)     -> tools/.cache/goals/
   * the names of the Photo Mode sticker textures      -> tools/.cache/stickers.txt
     (the companion portraits point at them; only the file names are stored)
+  * the names of the game's UI icons                  -> tools/.cache/icons.txt
+    (the portrait of a dead companion is the game's own "dead" status icon)
 
 Run again after a game patch, then run build_data.py to re-validate the data.
 
@@ -204,9 +206,23 @@ def index_stickers(exe, game_pak, out_path):
     return len(paths)
 
 
+def index_icons(icons_dir, out_path):
+    """Names of the game's UI icons (the MapKey of every entry in the icon atlases, Public/*/GUI/Icons_*.lsx).
+    The window shows one of them, so its name is validated against this list."""
+    names = set()
+    for path in glob.glob(os.path.join(icons_dir, "**", "Icons_*.lsx"), recursive=True):
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            names.update(re.findall(r'id="MapKey"\s+type="FixedString"\s+value="([^"]+)"', fh.read()))
+    with open(out_path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(sorted(names)) + ("\n" if names else ""))
+    return len(names)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--divine", default=None, help="path to LSLib Divine.exe")
+    ap.add_argument("--only", choices=["icons"], default=None,
+                    help="refresh one part of the cache only (icons: the UI icon names)")
     ap.add_argument("--game", default=None, help="BG3 install folder (contains Data\\)")
     ap.add_argument("--cache", default=DEFAULT_CACHE)
     args = ap.parse_args()
@@ -233,6 +249,19 @@ def main():
     hotfixes = {os.path.normcase(p): p for p in glob.glob(os.path.join(data, "Patch*_*ot*ix*.pak"))}
     paks += sorted(hotfixes.values(), key=natural_key)
     paks = [p for p in dict.fromkeys(paks) if os.path.exists(p)]
+
+    def refresh_icons():
+        icons_dest = os.path.join(work, "icons")
+        for pak in paks:
+            extract(exe, pak, icons_dest, "Public/*/GUI/Icons_*.lsx")
+        n = index_icons(icons_dest, os.path.join(cache, "icons.txt"))
+        print(f"  {n} UI icon names")
+
+    if args.only == "icons":
+        refresh_icons()
+        shutil.rmtree(work, ignore_errors=True)
+        print("Done. Cache:", cache)
+        return
 
     goals_dest = os.path.join(work, "story")
     flags_dest = os.path.join(work, "flags_lsf")
@@ -273,6 +302,8 @@ def main():
     if os.path.exists(game_pak):
         n = index_stickers(exe, game_pak, os.path.join(cache, "stickers.txt"))
         print(f"  {n} Photo Mode stickers")
+
+    refresh_icons()
 
     shutil.rmtree(work, ignore_errors=True)
     print("Done. Cache:", cache)

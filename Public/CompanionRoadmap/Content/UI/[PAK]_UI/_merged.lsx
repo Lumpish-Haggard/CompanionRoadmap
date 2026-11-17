@@ -143,6 +143,138 @@
 					<attribute id="Height" type="int32" value="256" />
 					<attribute id="Depth" type="int32" value="1" />
 				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="141b93fc-e601-44e3-aa63-d4d420720467" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Shadowheart_Eyeroll" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Shadowheart Eyeroll.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Shadowheart_Eyeroll" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="bdea98bd-259d-4261-8443-32b8da50f796" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Shadowheart_Happy" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Shadowheart Happy.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Shadowheart_Happy" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="0e8642bb-0ad9-428e-9fe9-8d32419df62d" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Minthara_Devil" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Minthara Devil.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Minthara_Devil" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="f5470f37-3698-4f2e-b9e7-096c0f6ded17" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Karlach_Angy" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Karlach Angy.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Karlach_Angy" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="240be757-8bca-4175-a502-89260e2a73ee" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Laezel_Istik" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Laezel Istik.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Laezel_Istik" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="ce8e5c46-c0e7-45ed-936c-ab02a1c092fb" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Astarion_Drool" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Astarion Drool.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Astarion_Drool" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="97f5bd9b-9d65-41b4-9021-a1d7e64ff7ec" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Astarion_Heart" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Astarion Heart.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Astarion_Heart" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="e3e3757c-9519-467b-aa41-c17f8817856f" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Gale_Laugh" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Gale Laugh.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Gale_Laugh" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="17457698-7a01-46ac-b99d-f3cf88ffe084" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Gale_Plead" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Gale Plead.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Gale_Plead" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="46310ac2-a65d-40e4-8434-85970fe5b12c" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Wyll_Kiss" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Wyll Kiss.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Wyll_Kiss" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
+				<node id="Resource">
+					<attribute id="ID" type="FixedString" value="d444909d-baf5-4484-88bd-655ed95539cb" />
+					<attribute id="Name" type="LSString" value="CompanionRoadmap_Portrait_Halsin_Smirk" />
+					<attribute id="SourceFile" type="LSString" value="Mods/PhotoMode/GUI/Assets/Stickers/Preview/Photo Mode_Stickers_Final_Emoji_Halsin Smirk.DDS" />
+					<attribute id="Template" type="FixedString" value="CompanionRoadmap_Portrait_Halsin_Smirk" />
+					<attribute id="Streaming" type="bool" value="True" />
+					<attribute id="Type" type="int32" value="1" />
+					<attribute id="SRGB" type="bool" value="False" />
+					<attribute id="Width" type="int32" value="256" />
+					<attribute id="Height" type="int32" value="256" />
+					<attribute id="Depth" type="int32" value="1" />
+				</node>
 			</children>
 		</node>
 	</region>

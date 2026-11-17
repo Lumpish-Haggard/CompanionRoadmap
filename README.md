@@ -43,8 +43,9 @@ Steps tick themselves off as you play. Everything is detected from the game's ow
 - **Notifications** when a tracked step is completed, or when an important one is missed, wherever you want them on screen.
 - **Every path is yours to choose**: where a companion's story splits (Minthara: knock her out, or raid the Grove with her), the paths are shown side by side as equals, with what each one changes.
 - **Manual check-offs** for anything the game does not record or another mod changes. They are saved inside each savegame.
+- **It remembers what it has seen**: some moments only last as long as their scene, and the game clears its own marker afterwards. The roadmap writes down what it saw in your save, so those steps stay done.
 - **Spoiler control**: the roadmap asks once how much it may reveal about later acts (everything, step titles only, or nothing). Until you choose, later acts stay hidden, including golden rules and romance notes.
-- **Companion portraits** from the game's own Photo Mode stickers (can be switched off). They show the companion's state: red while dead but revivable, faded once gone for good.
+- **Companion portraits that react** (can be switched off): the game's own Photo Mode stickers, changing with how things stand. Pleased at 41+ approval, sour at -20 or lower, smitten when you are dating or partnered, the game's red skull when dead, and faded when gone for good. The game only has a few stickers per companion, so some moods share a picture.
 - **Mod Configuration Menu** support: a settings page, a rebindable hotkey and an "Open roadmap" button. MCM is optional.
 - **Multiplayer and origin aware**: each player sees their own approval and romance; playing as an origin marks that companion's recruitment and romance as not applicable.
 
@@ -92,7 +93,7 @@ To uninstall, disable or remove it. Saves made with it still load; the game only
 | `NOT SEEN` | From an earlier act and not detected. It may still be possible, or the game does not record it, so check it off if you did it. |
 | `WAITING` | Waits for an earlier step |
 | `LATER` | Belongs to a later act |
-| `DONE` | Detected in your save |
+| `DONE` | Detected in your save, or remembered from when the roadmap saw it |
 | `CHECKED` | You checked it off |
 | `MISSED` | Failed, or its window has closed |
 | `N/A` | Does not apply to your path |
@@ -111,6 +112,8 @@ Open the Script Extender console:
 | `!roadmap` | server | print what the tracker sees: act, approval, relationships, step counts |
 | `!roadmap steps Minthara` | server | list one companion's steps and statuses |
 | `!roadmap report` | server | write `Script Extender/CompanionRoadmap/report.json`: everything the tracker sees, for bug reports |
+| `!roadmap memory` | server | how much the roadmap remembers in this save, and which companions the game removed and why |
+| `!roadmap forget` | server | forget everything remembered in this save (what the save itself shows is unaffected) |
 | `!roadmap resetoverrides` | server | clear all manual check-offs in this save |
 
 ## What is covered
@@ -133,8 +136,11 @@ Open the Script Extender console:
 - **Detection comes from the game itself.** The tracker reads journal steps, story flags, Osiris databases and approval through the Script Extender. Every flag and journal step it uses was extracted from the game files and is validated by [`tools/build_data.py`](tools/build_data.py). Nothing is a guessed ID.
 - **Guide text is cross-checked** against the game's own journal text and story scripts, and against [bg3.wiki](https://bg3.wiki).
 - **What was reviewed is written down.** [docs/COVERAGE.md](docs/COVERAGE.md) lists, per companion, every way to lose them that the guide warns about, what each one was confirmed against, and what is still open.
-- **A companion who is gone is shown as gone**, even when the journal says nothing: the tracker also reads the marker the game itself puts on a companion it has removed for good.
-- **What it cannot see**: moments the game only keeps inside a conversation, and romance flags that other mods change. Use *I did this - mark it as done* for those, and [tell us](../../issues/new/choose) if a step should be detectable.
+- **Camp scenes are checked against the game's own scheduler** whenever the guide data is rebuilt from the game files: approval thresholds, scenes that need you to be dating or partnered, and what cancels a scene.
+- **A companion who is gone is shown as gone**, even when the journal says nothing: the tracker also reads the marker the game itself puts on a companion it has removed for good, and records the game's own reason when it happens.
+- **It remembers.** A moment the game clears again after its scene stays `DONE` once the roadmap has seen it, and says that it is remembered. A failure the game records still wins, and a memory never marks anything as missed.
+- **After a game update** the roadmap checks that every flag it watches still exists, and warns you if some are gone.
+- **What it cannot see**: moments that were already over before the roadmap was installed, moments the game only keeps inside a conversation, and romance flags that other mods change. Use *I did this - mark it as done* for those, and [tell us](../../issues/new/choose) if a step should be detectable.
 - Installing mid-playthrough works: the tracker reads what the game has already recorded.
 
 ## Compatibility
@@ -163,6 +169,12 @@ Load a save; the roadmap fills in by itself. *Options > Refresh now* forces an u
 <summary>A step I completed is not detected</summary>
 
 Some moments are only recorded inside a conversation. Tick *I did this - mark it as done*. If you think the game does record it, open an issue and attach the report file (*Options > Create a report file*). It contains game identifiers only, nothing personal.
+</details>
+
+<details>
+<summary>The window says my game "no longer has" some of the things the guide watches</summary>
+
+A game update removed or renamed story flags the roadmap reads. The steps that use them cannot be detected until the mod is updated; check them off by hand meanwhile. The console names the missing flags, and a report file (*Options > Create a report file*) includes them: please attach it to an issue.
 </details>
 
 <details>

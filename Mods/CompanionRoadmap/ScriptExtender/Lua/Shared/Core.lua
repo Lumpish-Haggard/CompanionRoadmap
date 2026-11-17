@@ -10,8 +10,8 @@
 CR = CR or {}
 
 CR.ModName = "Companion & Romance Roadmap"
-CR.Version = "1.0.3"
-CR.Protocol = 1                                       -- bump when the net payload changes
+CR.Version = "1.1.0"
+CR.Protocol = 2                                       -- bump when the net payload changes
 CR.NULL = "NULL_00000000-0000-0000-0000-000000000000" -- Osiris NULL GUID (global flags, "any player")
 CR.Verbose = false                                    -- toggled with the console command "!roadmap debug"
 
@@ -159,23 +159,29 @@ function CR.Net.Init()
 end
 
 -- -----------------------------------------------------------------------------
--- Savegame storage: manual check-offs live in a mod variable so they travel with
--- the save. Must be registered at bootstrap, with identical settings on both sides.
+-- Savegame storage: mod variables travel with the save. Must be registered at
+-- bootstrap, with identical settings on both sides.
+--   Overrides   manual check-offs
+--   Memory      moments the mod saw happen (Tracker/Memory.lua)
 -- -----------------------------------------------------------------------------
+CR.SaveVars = { "Overrides", "Memory" }
+
 function CR.RegisterVars()
     if not (Ext.Vars and Ext.Vars.RegisterModVariable) then
-        CR.Warn("Ext.Vars is unavailable - manual check-offs will not be saved with the game.")
+        CR.Warn("Ext.Vars is unavailable - check-offs and remembered moments will not be saved with the game.")
         return
     end
-    local ok, err = pcall(Ext.Vars.RegisterModVariable, ModuleUUID, "Overrides", {
-        Server = true,
-        Client = false,
-        WriteableOnServer = true,
-        WriteableOnClient = false,
-        Persistent = true,
-        SyncToClient = false,
-    })
-    if not ok then CR.Warn("Could not register the save variable: %s", tostring(err)) end
+    for _, name in ipairs(CR.SaveVars) do
+        local ok, err = pcall(Ext.Vars.RegisterModVariable, ModuleUUID, name, {
+            Server = true,
+            Client = false,
+            WriteableOnServer = true,
+            WriteableOnClient = false,
+            Persistent = true,
+            SyncToClient = false,
+        })
+        if not ok then CR.Warn("Could not register the save variable '%s': %s", name, tostring(err)) end
+    end
 end
 
 --- Converts the peer id passed to net handlers into the user id Osiris expects.

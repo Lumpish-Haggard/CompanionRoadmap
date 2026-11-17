@@ -223,9 +223,11 @@ class Runtime:
         host.db_get = db_get
         lua.globals().Host = host
         self.mock = lua.execute(open(MOCK, encoding="utf-8").read())
-        # the textures the mod declares are the only ones AddImage may use
+        # the textures and game icons the mod declares are the only ones AddImage may use
         for texture in declared_textures():
             self.mock.Textures[texture] = True
+        for icon in declared_game_icons():
+            self.mock.Icons[icon] = True
 
     def boot(self, bootstrap):
         self.env = self.mock.Env()
@@ -281,6 +283,14 @@ def declared_textures():
     return re.findall(r'<attribute id="ID" type="FixedString" value="([0-9a-f-]{36})"', text)
 
 
+def declared_game_icons():
+    """Names of the game's own UI icons the mod uses (T.GameIcons in UI/Theme.lua).
+    tools/build_data.py checks them against the game's icon atlases."""
+    text = open(os.path.join(LUA_DIR, "UI", "Theme.lua"), encoding="utf-8").read()
+    block = re.search(r'T\.GameIcons = \{(.*?)\n\}', text, re.S)
+    return re.findall(r'=\s*"([^"]+)"', block.group(1)) if block else []
+
+
 def world_from_report(report):
     """Rebuilds the fake game world from a report file written by `!roadmap report`.
 
@@ -324,7 +334,7 @@ def world_from_report(report):
 
 def replay_report(report):
     """Boots the mod on the world described by a report and opens the roadmap."""
-    world, sim, server, client = make(world_from_report(report))
+    world, sim, server, client = make(world_from_report(report), memory=report.get("memory"))
     for step_id in report.get("overrides") or []:
         server.eval(f'CR.Server.SetOverride("{step_id}", true)')
     fire_running(client, sim)
@@ -343,11 +353,15 @@ def all_statuses(client):
     return dict(item.split("=") for item in str(text).split(";") if item)
 
 
-def make(world=None):
+def make(world=None, memory=None):
+    """Boots server and client on a world. `memory` is what the save already holds in
+    the mod's "Memory" variable (the choice memory), as a report file exports it."""
     world = world or World()
     sim = Sim(world)
     server = Runtime("server", True, sim)
     client = Runtime("client", False, sim)
+    if memory:
+        server.lua.globals().Ext.Vars.vars.Memory = server.to_lua(memory)
     server.boot("BootstrapServer.lua")
     client.boot("BootstrapClient.lua")
     for rt in (server, client):
@@ -631,7 +645,12 @@ def test_scheduler_facts():
     check(step_status(client, "WYLL_A3_PROPOSAL") == "M", f"a goodbye is not a proposal: {step_status(client, 'WYLL_A3_PROPOSAL')}")
     # Gale's starry night needs Elminster's message first
     check(step_status(client, "GALE_A2_STARS") in ("P", "M", "I"), f"no Elminster, no night: {step_status(client, 'GALE_A2_STARS')}")
-    # the Dark Justiciar's night is cancelled once the House of Grief is concluded
+    # the Dark Justiciar's night only plays for her partner (1.1: the scheduler cross-check found this)
+    check(step_status(client, "SH_A3_SHARNIGHT") == "M", f"not her partner, no Shar night: {step_status(client, 'SH_A3_SHARNIGHT')}")
+    world.set_flag("ORI_State_PartneredWithShadowheart", AVATAR)
+    server.mock.FireOsiris("FlagSet", "ORI_State_PartneredWithShadowheart_" + FLAG["ORI_State_PartneredWithShadowheart"], AVATAR, 0)
+    sim.run(max_ms=1000)
+    # ... and is cancelled once the House of Grief is concluded
     check(step_status(client, "SH_A3_SHARNIGHT") in ("A", "N"), f"Shar path night is open: {step_status(client, 'SH_A3_SHARNIGHT')}")
     world.set_flag("ORI_Shadowheart_State_ConcludedGrotto")
     server.mock.FireOsiris("FlagSet", "ORI_Shadowheart_State_ConcludedGrotto_" + FLAG["ORI_Shadowheart_State_ConcludedGrotto"], "NULL_" + NULL, 0)
@@ -748,6 +767,140 @@ def test_notice_position():
     client.eval('CR.Settings.Set("toastPosition", "bottom-centre")')
     index = client.eval("return CR.UI.h.toastPos.SelectedIndex")
     check(index == 5, f"the combo should show 'Bottom centre' (index 5), got {index}")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+
+
+def test_choice_memory():
+    """What the mod saw stays remembered after the save forgets it, and the game's own
+    reason for removing a companion is kept (1.1 "Trust")."""
+    world, sim, server, client = make()
+    world.set_flag("GLO_Origin_PartOfTheTeam_Shadowheart")
+    world.set_flag("VISITEDREGION_WLD_Main_A")
+    world.set_flag("ORI_State_DatingShadowheart", AVATAR)
+    world.dbs["DB_KnockedOut"] = [(UUID["Minthara"],)]
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+
+    def remembered(step_id):
+        return client.eval(f'local r = CR.Client.Snapshot.steps["{step_id}"] return r and r[3]')
+
+    def refresh():
+        server.eval("CR.Server.MarkDirty()")
+        sim.run(max_ms=1000)
+
+    check(step_status(client, "MIN_A1_KO") == "D" and remembered("MIN_A1_KO") is None, "knocked out: detected in the save")
+
+    # Minthara is moved to Moonrise and the game drops its knocked-out record: the step stays done
+    world.dbs["DB_KnockedOut"] = []
+    refresh()
+    check(step_status(client, "MIN_A1_KO") == "D", f"the knockout is remembered: {step_status(client, 'MIN_A1_KO')}")
+    check(remembered("MIN_A1_KO") == 1, f"remembered from Act 1: {remembered('MIN_A1_KO')}")
+    client.eval('CR.UI.Select("Minthara")')
+    sim.run()
+    state = str(client.eval("return CR.UI.page.steps.MIN_A1_KO.state.Label"))
+    check(state.startswith("Remembered:") and "in Act 1" in state, f"the step says it is remembered: {state}")
+
+    # a flag seen in an ordinary snapshot, cleared later (a breakup purges the dating flag)
+    world.clear_flag("ORI_State_DatingShadowheart", AVATAR)
+    refresh()
+    check(step_status(client, "SH_A1_PARTY") == "D" and remembered("SH_A1_PARTY") == 1,
+          f"the wine scene happened, even though the save no longer says dating: {step_status(client, 'SH_A1_PARTY')}")
+
+    # a flag set and cleared again inside one conversation: the event itself is written down
+    server.mock.FireOsiris("FlagSet", "ORI_State_DatingKarlach_" + FLAG["ORI_State_DatingKarlach"], AVATAR, 7)
+    sim.run(max_ms=1000)
+    check(step_status(client, "KAR_A1_ROMANCE") == "D", f"a flag seen only in its event counts: {step_status(client, 'KAR_A1_ROMANCE')}")
+    # but a failure the save records still wins over anything remembered
+    world.set_flag("ORI_State_ChosePartnerOverKarlach", AVATAR)
+    refresh()
+    check(step_status(client, "KAR_A1_ROMANCE") == "M", "a recorded failure beats memory")
+    # ... also when another path makes the step unnecessary at the same time
+    server.eval('CR.Guides.StepById.KAR_A1_ROMANCE.skip = { CR.Cond.G("VISITEDREGION_WLD_Main_A") }')
+    refresh()
+    check(step_status(client, "KAR_A1_ROMANCE") == "X", f"failure and skip: not done, not missed: {step_status(client, 'KAR_A1_ROMANCE')}")
+    server.eval("CR.Guides.StepById.KAR_A1_ROMANCE.skip = nil")
+    world.clear_flag("ORI_State_ChosePartnerOverKarlach", AVATAR)
+    refresh()
+    check(step_status(client, "KAR_A1_ROMANCE") == "D", f"no failure: remembered again: {step_status(client, 'KAR_A1_ROMANCE')}")
+
+    # the memory travels with the save: a new session given only what is IN the save variable
+    server.mock.ConsoleCommands["roadmap"]("roadmap", "report")
+    report = json.loads(str(server.mock.Files["CompanionRoadmap/report.json"]))
+    stored = json.loads(str(server.eval("return Ext.Json.Stringify(Ext.Vars.vars.Memory or {})")))
+    check(stored.get("facts"), f"the memory is written into the save variable: {stored}")
+    world2, sim2, server2, client2 = make(world_from_report(report), memory=stored)
+    fire_running(client2, sim2)
+    client2.eval("CR.UI.SetOpen(true)")
+    sim2.run()
+    check(step_status(client2, "MIN_A1_KO") == "D" and step_status(client2, "KAR_A1_ROMANCE") == "D",
+          "after loading the save, remembered steps are still done")
+    # and the report carries it too, so a bug report replays to the same statuses
+    check(report.get("memory") and len(report["memory"]["facts"]) > 0, "the report carries the memory")
+    world3, sim3, server3, client3 = replay_report(report)
+    expected = {k: v[0] for k, v in report["steps"].items()}
+    actual = all_statuses(client3)
+    diff = {k: (expected[k], actual.get(k)) for k in expected if actual.get(k) != expected[k]}
+    check(not diff, f"a report with memory replays to the same statuses: {diff}")
+
+    # the game removes Karlach for good and says why; nothing reaches the journal
+    karlach = "S_Player_Karlach_" + UUID["Karlach"]
+    world.set_flag("GLO_Origin_PartOfTheTeam_Karlach")
+    refresh()
+    world.clear_flag("GLO_Origin_PartOfTheTeam_Karlach")
+    server.mock.FireOsiris("PROC_Origins_CompanionLeavePermanently", karlach, "ORI_Karlach_LeftPrisonAlone")
+    sim.run(max_ms=1000)
+    info = str(client.eval("local c = CR.Client.Snapshot.comps.Karlach return tostring(c.lost) .. '/' .. tostring(c.why) .. '/' .. tostring(c.lb)"))
+    check(info == "true/left/ORI_Karlach_LeftPrisonAlone", f"Karlach is gone, with the game's reason: {info}")
+    client.eval('CR.UI.Select("Karlach")')
+    sim.run()
+    notice = str(client.eval("return CR.UI.page.notice.Label"))
+    check("left behind in the prison at Wyrm's Rock" in notice, f"the page says why: {notice}")
+    # she comes back after all (another mod, a reload trick): she is not gone
+    world.set_flag("GLO_Origin_PartOfTheTeam_Karlach")
+    refresh()
+    check(client.eval("return CR.Client.Snapshot.comps.Karlach.lost") is False, "back in the team means not lost")
+    check(server.eval('return CR.Memory.Left("' + UUID["Karlach"] + '") == nil') is True, "and the departure is forgotten")
+
+    # Options shows how much is remembered, and '!roadmap forget' clears it
+    label = str(client.eval("return CR.UI.h.memory.Label"))
+    check(label.startswith("The roadmap remembers ") and "moments" in label, f"Options shows the memory: {label}")
+    server.mock.ConsoleCommands["roadmap"]("roadmap", "forget")
+    sim.run(max_ms=1000)
+    check(step_status(client, "MIN_A1_KO") != "D", "after forgetting, the knockout is no longer known")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+    check(not server2.errors() and not client2.errors(), f"errors: {server2.errors()} {client2.errors()}")
+
+
+def test_patch_day_check():
+    """After a game update, flags the guide watches that no longer exist are reported."""
+    world, sim, server, client = make()
+    world.set_flag("GLO_Origin_PartOfTheTeam_Shadowheart")
+    world.set_flag("VISITEDREGION_WLD_Main_A")
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+    check(client.eval("return CR.UI.h.gone.Visible") is False, "nothing to report on an unchanged game")
+
+    def recheck():
+        server.eval("CR.Server.GameDataChecked = nil CR.Server.CheckGameData() CR.Server.MarkDirty()")
+        sim.run(max_ms=1000)
+
+    gone = ("NIGHT_Karlach_ANightAtTheTown", "ORI_Shadowheart_State_SharPath")
+    for name in gone:
+        server.mock.MissingFlags[FLAG[name]] = True
+    recheck()
+    check(server.eval("return #CR.Server.MissingFlags") == 2, "two watched flags are gone")
+    label = str(client.eval("return CR.UI.h.gone.Label"))
+    check(client.eval("return CR.UI.h.gone.Visible") is True and "2 of the things" in label, f"the window says so: {label}")
+    warned = " ".join(msg for kind, msg in server.logs if kind == "warn")
+    check(all(name in warned for name in gone), "the console names them")
+
+    # if the lookup itself does not work, the mod claims nothing
+    server.mock.StaticDataWorks = False
+    recheck()
+    check(server.eval("return #CR.Server.MissingFlags") == 0, "an unusable lookup reports nothing")
+    check(client.eval("return CR.UI.h.gone.Visible") is False, "and the warning disappears")
     check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
 
 
@@ -1019,50 +1172,96 @@ def test_portraits_and_esc():
     def tint(lua_expr):
         return str(client.eval(f"local t = {lua_expr} return string.format('%.2f,%.2f,%.2f,%.2f', t[1], t[2], t[3], t[4])"))
 
-    def side(name, field="normal"):
-        return f"CR.UI.sidebar.{name}.img.{field}"
+    def shown(name, where="sidebar"):
+        """What the picture is: a texture id from the mod's texture bank, or a game icon name."""
+        holder = f"CR.UI.sidebar.{name}.img" if where == "sidebar" else "CR.UI.page.portrait"
+        return str(client.eval(f"local d = {holder}.img.ImageData return d.Icon or d.TextureResource"))
 
-    texture = client.eval(f"return {side('Shadowheart')}.ImageData.TextureResource")
-    check(texture == client.eval("return CR.Theme.Portraits.Shadowheart"), "the sidebar should show Shadowheart's portrait")
-    check(client.eval("return CR.UI.page.portrait ~= nil") is True, "the page header should have a portrait")
-    # Astarion died before joining: he is lost, and his picture says so
-    check(tint(side("Astarion") + ".Tint") == tint("CR.Theme.PortraitTint.lost"), "a lost companion's portrait is faded")
-    check(tint(side("Shadowheart") + ".Tint") == tint("CR.Theme.PortraitTint.normal"), "other portraits are not")
-    # no living portrait may be the "dead" sticker (Lae'zel's looked dead even while she was alive)
-    check(client.eval("return CR.Theme.Portraits.Laezel ~= CR.Theme.PortraitsDead.Laezel") is True,
-          "Lae'zel's normal portrait must not be her 'dead' sticker")
-    check(client.eval(f"return {side('Laezel')}.Visible and not {side('Laezel', 'dead')}.Visible") is True,
-          "a living Lae'zel shows her normal picture")
-    # every companion has a declared texture
+    def pic(name, mood):
+        return str(client.eval(f"return CR.Theme.Portraits.{name}.{mood}"))
+
+    def refresh():
+        server.eval("CR.Server.MarkDirty()")
+        sim.run(max_ms=1000)
+
+    NORMAL, FADED = tint("CR.Theme.PortraitTint.normal"), tint("CR.Theme.PortraitTint.lost")
+    skull = str(client.eval("return CR.Theme.GameIcons.dead"))
+
+    # every companion has a picture, and at the start it is the neutral one
     missing = client.eval("""
         local out = {}
         for _, comp in ipairs(CR.Guides.Companions) do
-            local img = CR.UI.sidebar[comp.id].img
-            if not (img and img.normal) then out[#out + 1] = comp.id end
+            local p = CR.UI.sidebar[comp.id].img
+            if not (p and p.img) then out[#out + 1] = comp.id end
         end
         return table.concat(out, ",")
     """)
     check(missing == "", f"companions without a portrait: {missing}")
+    check(shown("Shadowheart") == pic("Shadowheart", "neutral"), "Shadowheart at 0 approval: neutral")
+    check(client.eval("return CR.UI.page.portrait ~= nil") is True, "the page header should have a portrait")
 
-    # Lae'zel falls in battle while in the party: her 'dead' sticker, tinted red (she can be revived)
+    # Astarion died before joining: the game's own 'dead' icon, at full strength
+    check(shown("Astarion") == skull, f"a dead companion without a dead sticker shows the skull: {shown('Astarion')}")
+    check(tint("CR.UI.sidebar.Astarion.img.img.Tint") == NORMAL, "the skull is not faded")
+
+    # approval: pleased from the game's 'High' tier up, sour from 'Low' down
+    sh = UUID["Shadowheart"]
+    for approval, mood in ((40, "neutral"), (41, "high"), (82, "high"), (-19, "neutral"), (-20, "low")):
+        world.approval[sh] = approval
+        refresh()
+        check(shown("Shadowheart") == pic("Shadowheart", mood), f"Shadowheart at {approval} approval should look {mood}")
+    check(shown("Shadowheart", "page") == pic("Shadowheart", "low"), "the page header follows the mood too")
+
+    # a romance outranks approval (Shadowheart has no romance sticker: the pleased one is used)
+    world.set_flag("ORI_State_DatingShadowheart", AVATAR)
+    refresh()
+    check(shown("Shadowheart") == pic("Shadowheart", "high"), "dating, whatever the approval: the warm picture")
+    # and death outranks everything
+    name = "S_Player_ShadowHeart_" + sh
+    world.dead.add(sh)
+    server.mock.FireOsiris("Died", name)
+    sim.run(max_ms=1000)
+    check(shown("Shadowheart") == skull, "dead, even while dating: the skull")
+    world.dead.discard(sh)
+    server.mock.FireOsiris("Resurrected", name)
+    sim.run(max_ms=1000)
+    check(shown("Shadowheart") == pic("Shadowheart", "high"), "revived: back to the warm picture")
+
+    # Lae'zel has a 'dead' sticker of her own, and must not show it while alive
     laezel = "S_Player_Laezel_" + UUID["Laezel"]
     world.set_flag("GLO_Origin_PartOfTheTeam_Laezel")
+    refresh()
+    check(shown("Laezel") == pic("Laezel", "neutral") and pic("Laezel", "neutral") != pic("Laezel", "dead"),
+          "a living Lae'zel shows her neutral picture")
     world.dead.add(UUID["Laezel"])
     server.mock.FireOsiris("Died", laezel)
     sim.run(max_ms=1000)
-    check(client.eval(f"return {side('Laezel', 'dead')}.Visible and not {side('Laezel')}.Visible") is True,
-          "a dead Lae'zel shows her 'dead' sticker")
-    check(tint(side("Laezel", "dead") + ".Tint") == tint("CR.Theme.PortraitTint.dead"), "dead but revivable is red")
-    client.eval('CR.UI.Select("Laezel")')
-    check(client.eval("return CR.UI.page.portrait.dead.Visible") is True, "the page header follows too")
-    # revived: back to normal
+    check(shown("Laezel") == pic("Laezel", "dead"), "a dead Lae'zel shows her own 'dead' sticker, not the skull")
     world.dead.discard(UUID["Laezel"])
     server.mock.FireOsiris("Resurrected", laezel)
     sim.run(max_ms=1000)
-    check(client.eval(f"return {side('Laezel')}.Visible and not {side('Laezel', 'dead')}.Visible") is True,
-          "a revived Lae'zel shows her normal picture again")
-    check(tint(side("Laezel") + ".Tint") == tint("CR.Theme.PortraitTint.normal"), "and it is no longer tinted")
+    check(shown("Laezel") == pic("Laezel", "neutral"), "a revived Lae'zel shows her neutral picture again")
 
+    # gone for good but alive: the sour picture, faded
+    world.quest("ORI_COM_Karlach", "CompanionLowRelation")
+    refresh()
+    check(shown("Karlach") == pic("Karlach", "low"), "Karlach left for good: her sour picture")
+    check(tint("CR.UI.sidebar.Karlach.img.img.Tint") == FADED, "and it is faded")
+    check(tint("CR.UI.sidebar.Shadowheart.img.img.Tint") == NORMAL, "others are not")
+
+    # the rules themselves (T.Mood), including the fallbacks for missing stickers
+    def mood(lua_table):
+        return str(client.eval(f"return CR.Theme.Mood({lua_table})"))
+    check(mood("nil") == "neutral" and mood("{ you = true, dead = true }") == "neutral", "no data, or your own character: neutral")
+    check(mood("{ rec = false, a = 90 }") == "neutral", "approval only counts for a companion who has joined")
+    check(mood("{ rec = true, a = 90, rel = 'partnered' }") == "partnered", "partnered")
+    check(mood("{ rec = true, a = 90, rel = 'ex' }") == "high", "an ex is judged by approval")
+    for comp, m, expected in (("Astarion", "partnered", "partnered"), ("Astarion", "dating", "dating"), ("Astarion", "high", "neutral"),
+                              ("Wyll", "partnered", "dating"), ("Gale", "partnered", "dating"), ("Karlach", "high", "neutral"),
+                              ("Minsc", "low", "neutral"), ("Halsin", "dating", "dating")):
+        got = str(client.eval(f'return CR.Theme.PortraitFor("{comp}", "{m}")'))
+        check(got == pic(comp, expected), f"{comp} when {m} should use the '{expected}' picture")
+    check(str(client.eval('return CR.Theme.PortraitFor("Minsc", "dead")')) == skull, "no dead sticker: the skull")
     # portraits can be switched off; the window keeps working
     client.eval('CR.Settings.Set("portraits", false)')
     check(client.eval("return CR.UI.sidebar.Shadowheart.img == nil and CR.UI.page.portrait == nil") is True,
@@ -1282,6 +1481,8 @@ TESTS = [
     test_scheduler_facts,
     test_paths_are_equal_choices,
     test_notice_position,
+    test_choice_memory,
+    test_patch_day_check,
     test_origin_avatar_and_console,
     test_mcm_integration,
 ]

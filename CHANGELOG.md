@@ -6,6 +6,37 @@ All notable changes to this project are documented here. The format follows [Kee
 
 Nothing yet.
 
+## [1.1.0] - 2026-11-17
+
+"Trust": the roadmap remembers what it has seen, and its data is now checked against the game's own camp-scene rules.
+
+### Added
+- **The roadmap remembers.** When the roadmap sees a step happen, it now writes that down in your save. Some moments only last as long as their scene: the game clears its own marker afterwards, and the step used to fall back to `NOT SEEN`. A remembered step stays `DONE`, and says so: *Remembered: ... The roadmap saw this in Act 2; your save no longer shows it.* A failure the game records still wins, and a memory never marks anything as missed. Moments that were already over before you installed this version cannot be remembered. *Options* shows how many moments are remembered; in the console, `!roadmap memory` sums them up and `!roadmap forget` clears them for this save.
+- **Why a companion left.** When the game removes a companion for good, the roadmap records the game's own reason and gives it on their page in plain words, for example "Karlach was left behind in the prison at Wyrm's Rock" or "Gale left camp after Ketheric fell: Elminster's message never reached him". This also covers departures the journal never mentions.
+- **Patch-day check.** On loading a save, the roadmap looks up every story flag it watches. If a game update removed some, the window says so at the top and the console names them, so a step that can no longer be detected shows up as a warning instead of a silent `NOT SEEN`.
+- **Portraits follow the companion's mood.** Each picture now changes with how things stand between you:
+  - **dead**: the game's own red skull (Lae'zel keeps her own "dead" sticker);
+  - **dating or partnered**: their smitten sticker, where the game has one (Astarion, Wyll, Halsin);
+  - **approval of 41 or more** (the game's "High"): a pleased one (Shadowheart, Gale);
+  - **approval of -20 or less** (the game's "Low"): a sour one (Shadowheart, Karlach, Lae'zel, Minthara, Gale);
+  - **gone for good but alive**: the sour one, faded;
+  - otherwise a neutral one.
+
+  The game only has a few Photo Mode stickers per companion, so some moods share a picture, and Jaheira and Minsc have a single one. There are no stickers for a companion's path (Shar or Selûne, ascended or not), so that is not shown.
+
+### Fixed
+- Found by the new cross-check with the game's camp scenes:
+  - Shadowheart's night swim, her Shar-path night and the shrine at nightfall only play while you are her partner. They now wait for the partner step, and are closed when it was missed, instead of staying open.
+  - Astarion's night after the Black Mass needs you to still be his partner, and now waits for that step too.
+  - Karlach's "cool her down" step counted as done as soon as she asked you about it. It now waits for the cooling scene itself, and says what works (water or cold) and that a long rest makes her drop the idea.
+- Minthara's raid path is marked done as soon as the Grove falls, not only once the goblins' celebration at camp has played.
+- A companion abducted by Orin would have been shown as gone for good: while she holds them, the game marks them the way it marks a companion it has removed. They are no longer counted as lost; they can still be rescued.
+- Pictures no longer contradict the companion's state. Shadowheart's was her angry sticker even at high approval, and Astarion's had heart eyes whatever happened, including when he was dead. (1.0.3 only tinted the same picture.)
+
+### Changed
+- Report files also contain what the roadmap remembers and any flags the patch-day check could not find, so a report replays to the same result.
+- For contributors: `tools/build_data.py` compares every step that is completed by a camp scene with the game's camp-scene scheduler: approval thresholds, scenes that need you to be dating or partnered, and what cancels a scene. It runs whenever the local game-data cache is present. `tools/extract_game_data.py` also lists the game's UI icon names (`--only icons` refreshes just that), and the validator checks the portrait sets and the icon the mod uses against the game.
+
 ## [1.0.3] - 2026-11-15
 
 ### Added
@@ -99,7 +130,8 @@ First public release. A full rebuild of an earlier prototype that could not run 
   - Wyll's romance only starts at the Tiefling party and needs Duke Ravengard alive; rescuing Mizora is what keeps Wyll himself alive.
   - Gale leaves only if you refuse the first magic item.
 
-[Unreleased]: ../../compare/v1.0.3...HEAD
+[Unreleased]: ../../compare/v1.1.0...HEAD
+[1.1.0]: ../../releases/tag/v1.1.0
 [1.0.3]: ../../releases/tag/v1.0.3
 [1.0.2]: ../../releases/tag/v1.0.2
 [1.0.1]: ../../releases/tag/v1.0.1

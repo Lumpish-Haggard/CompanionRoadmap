@@ -121,6 +121,10 @@ Mock.Fonts = {}
 -- Texture resources AddImage may use: GUID -> true. The harness fills this from the
 -- mod's texture bank (Public/CompanionRoadmap/Content/UI/[PAK]_UI/_merged.lsx).
 Mock.Textures = {}
+-- Game UI icons AddImage may use, by atlas name: name -> true. The harness fills this
+-- from the names the mod declares in UI/Theme.lua (T.GameIcons); build_data.py checks
+-- those names against the game's icon atlases.
+Mock.Icons = {}
 -- Localisation handles -> text, for Ext.Loca.GetTranslatedString
 Mock.Loca = {}
 
@@ -367,15 +371,23 @@ local function method(e, name)
                 end
             end
             if addType == "Image" then
-                -- AddImage(iconOrTexture, size?, uv0?, uv1?): the first argument is not a label
-                if type(label) ~= "string" or not Mock.Textures[label] then
-                    fail("AddImage: '" .. tostring(label) .. "' is not a texture resource declared by the mod", 2)
+                -- AddImage(iconOrTexture, size?, uv0?, uv1?): the first argument is not a label.
+                -- BG3SE tries it as an atlas icon name first, then as a texture resource id;
+                -- anything else only logs a warning and draws nothing, so it is an error here.
+                if type(label) ~= "string" or not (Mock.Icons[label] or Mock.Textures[label]) then
+                    fail("AddImage: '" .. tostring(label) .. "' is neither a game icon the mod declares "
+                        .. "nor a texture resource in its texture bank", 2)
                 end
                 if a ~= nil and (type(a) ~= "table" or #a ~= 2) then fail("AddImage: size must be {w,h}", 2) end
             end
             local child = newElement(addType, needsLabel and label or "", self)
             if addType == "Image" then
-                child.__values.ImageData = { TextureResource = label, Size = a or { 0, 0 } }
+                child.__values.ImageData = { Size = a or { 0, 0 } }
+                if Mock.Icons[label] then
+                    child.__values.ImageData.Icon = label
+                else
+                    child.__values.ImageData.TextureResource = label
+                end
                 child.__values.Tint = { 1, 1, 1, 1 }
             end
             if addType == "Checkbox" then child.__values.Checked = a and true or false end
@@ -472,6 +484,8 @@ local OSIRIS_EVENTS = {
     FlagSet = 3, FlagCleared = 3, QuestUpdateUnlocked = 3, ApprovalRatingChanged = 3,
     Died = 1, Resurrected = 1, CharacterJoinedParty = 1, CharacterLeftParty = 1, LevelGameplayStarted = 2,
     DialogEnded = 2,
+    -- user-defined story procedures can be listened to as well (not built-in calls)
+    PROC_Origins_CompanionLeavePermanently = 2,
 }
 Mock.OsirisListeners = {}
 Mock.ConsoleCommands = {}
@@ -513,10 +527,47 @@ Ext.IO = {
     LoadFile = function(p) return Mock.Files[p] end,
     SaveFile = function(p, c) assert(type(c) == "string") Mock.Files[p] = c return true end,
 }
+-- Mod variables: only names registered at bootstrap may be read or written, and a
+-- value is stored as a copy (the real one is serialised), so changing a table
+-- after assigning it does not change what is saved.
+local function deepCopy(v)
+    if type(v) ~= "table" then return v end
+    local out = {}
+    for k, x in pairs(v) do out[k] = deepCopy(x) end
+    return out
+end
 Ext.Vars = {
-    vars = {},
-    RegisterModVariable = function(uuid, name, opts) assert(uuid == ModuleUUID) assert(type(opts) == "table") end,
-    GetModVariables = function(uuid) assert(uuid == ModuleUUID) return Ext.Vars.vars end,
+    vars = {},          -- what is "in the savegame"; tests may pre-fill it
+    registered = {},
+    RegisterModVariable = function(uuid, name, opts)
+        assert(uuid == ModuleUUID)
+        assert(type(name) == "string" and type(opts) == "table")
+        Ext.Vars.registered[name] = true
+    end,
+    GetModVariables = function(uuid)
+        assert(uuid == ModuleUUID)
+        return setmetatable({}, {
+            __index = function(_, name)
+                if not Ext.Vars.registered[name] then fail("mod variable '" .. tostring(name) .. "' was never registered", 2) end
+                return Ext.Vars.vars[name]
+            end,
+            __newindex = function(_, name, value)
+                if not Ext.Vars.registered[name] then fail("mod variable '" .. tostring(name) .. "' was never registered", 2) end
+                Ext.Vars.vars[name] = deepCopy(value)
+            end,
+        })
+    end,
+}
+-- The game's static resources. Only flags are asked for (the patch-day check):
+-- every GUID exists unless a test lists it in Mock.MissingFlags.
+Mock.MissingFlags = {}
+Mock.StaticDataWorks = true
+Ext.StaticData = {
+    Get = function(guid, kind)
+        if kind ~= "Flag" then fail("Ext.StaticData.Get: only 'Flag' is mocked, got " .. tostring(kind), 2) end
+        if not Mock.StaticDataWorks or Mock.MissingFlags[guid] then return nil end
+        return { ResourceUUID = guid }
+    end,
 }
 Ext.Net = {
     CreateChannel = function(module, name)

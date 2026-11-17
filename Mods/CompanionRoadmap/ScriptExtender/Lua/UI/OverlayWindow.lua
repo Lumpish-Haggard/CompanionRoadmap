@@ -62,10 +62,12 @@ local BASELINE_NUDGE = { 0, 3 }
 -- -----------------------------------------------------------------------------
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 
+--- Status, evidence index, and (for a step that is DONE from the choice memory)
+--- the act it was remembered from.
 local function stepResult(snap, id)
     local r = snap and snap.steps and snap.steps[id]
-    if r then return r[1] or "?", r[2] or 0 end
-    return "?", 0
+    if r then return r[1] or "?", r[2] or 0, r[3] end
+    return "?", 0, nil
 end
 
 local function compSnapshot(snap, comp)
@@ -97,8 +99,14 @@ end
 local SELF_EXPLAINING = { N = true, A = true, U = true, ["?"] = true }
 
 --- One plain sentence under a step: what the game recorded, or why it is closed.
-local function describeEvidence(comp, c, step, status, evidence)
-    if status == S.DONE and evidence > 0 and step.done[evidence] then
+--- `remembered` is the act a DONE step is remembered from, when the save itself no
+--- longer shows it (0 = act unknown).
+local function describeEvidence(comp, c, step, status, evidence, remembered)
+    if status == S.DONE and remembered ~= nil and step.done[evidence] then
+        local when = (type(remembered) == "number" and remembered >= 1) and (" in Act " .. remembered) or " earlier"
+        return "Remembered: " .. Guides.Explain(step.done[evidence], comp, "done")
+            .. ". The roadmap saw this" .. when .. "; your save no longer shows it."
+    elseif status == S.DONE and evidence > 0 and step.done[evidence] then
         return "Detected: " .. Guides.Explain(step.done[evidence], comp, "done")
     elseif status == S.MISSED and evidence < 0 and step.fail[-evidence] then
         return "Missed: " .. Guides.Explain(step.fail[-evidence], comp, "fail")
@@ -207,7 +215,14 @@ end
 --- A 0-100 slider for a percentage setting. The extender passes the value as a
 --- four-component vector ({ n, 0, 0, 0 }).
 local function addPercentSlider(parent, label, key)
-    local slider = parent:AddSliderInt(label, math.floor(tonumber(Set.Get(key)) or 0), 0, 100)
+    -- guarded: if the extender ever refuses the slider, the rest of the Options tab must still build
+    local ok, slider = pcall(function()
+        return parent:AddSliderInt(label, math.floor(tonumber(Set.Get(key)) or 0), 0, 100)
+    end)
+    if not ok or not slider then
+        CR.Warn("Could not create the '%s' slider: %s", key, tostring(slider))
+        return nil
+    end
     T.SetProp(slider, "ItemWidth", 320)
     slider.OnChange = function(_, value)
         local v = type(value) == "table" and value[1] or value
@@ -309,6 +324,7 @@ local function buildOptions(parent)
         end
     end
     T.Text(parent, "Check-offs are stored in your save file.", T.C.faint, "small")
+    UI.h.memory = T.Text(parent, "", T.C.faint, "small")
     parent:AddSpacing()
 
     section(parent, "Report a problem")
@@ -353,29 +369,29 @@ end
 -- Window
 -- -----------------------------------------------------------------------------
 
---- A companion picture: the normal sticker, plus the "dead" one where the game has
---- it. Both live in the same cell; only one is visible at a time.
-local function addPortrait(cell, comp, size)
-    local p = { normal = T.Image(cell, T.Portraits[comp.id], size) }
-    if T.PortraitsDead[comp.id] then
-        p.dead = T.Image(cell, T.PortraitsDead[comp.id], size)
-        T.Show(p.dead, false)
-    end
-    return p
-end
-
---- Shows the companion's state on the picture: red while dead but revivable,
---- dark and faded once they are gone for this playthrough.
+--- Shows the picture that fits the companion's mood (T.Mood): dead, in love, pleased,
+--- annoyed or neutral. The extender cannot re-point an existing image, so the
+--- picture is rebuilt when it changes. `p.cell` holds nothing but the picture.
 local function setPortrait(p, c)
     if not p then return end
-    local dead = c and c.dead and not c.you
-    local useDead = dead and p.dead ~= nil
-    local tint = T.PortraitTint.normal
-    if c and c.lost then tint = T.PortraitTint.lost
-    elseif dead then tint = T.PortraitTint.dead end
-    T.Show(p.normal, not useDead)
-    if p.dead then T.Show(p.dead, useDead) end
-    T.SetProp(useDead and p.dead or p.normal, "Tint", tint)
+    local mood = T.Mood(c)
+    local picture = T.PortraitFor(p.comp.id, mood)
+    if picture ~= p.shown then
+        pcall(function() p.cell:RemoveAllChildren() end)
+        p.img = T.Image(p.cell, picture, p.size)
+        p.shown = picture
+    end
+    p.mood = mood
+    -- a dead companion's picture says so by itself; one who left alive is faded
+    local faded = c and c.lost and not c.dead
+    T.SetProp(p.img, "Tint", faded and T.PortraitTint.lost or T.PortraitTint.normal)
+end
+
+--- A companion picture in `cell`, neutral until the first snapshot arrives.
+local function addPortrait(cell, comp, size)
+    local p = { cell = cell, comp = comp, size = size }
+    setPortrait(p, nil)
+    return p
 end
 
 --- (Re)builds the companion list. With portraits each entry is a table row, so a
@@ -453,6 +469,9 @@ local function buildWindow()
         selectTab(h.tabWarn)
     end
     T.Show(h.alert, false)
+    -- patch-day check: only shown when the game no longer has something the guide watches
+    h.gone = T.Text(win, "", T.C.warn, "small")
+    T.Show(h.gone, false)
 
     -- asked once: how much may the roadmap reveal about acts not reached yet?
     h.firstRun = win:AddGroup("##crFirstRun")
@@ -708,7 +727,19 @@ local function refreshHeader(snap)
         T.Update(h.act, "Waiting for the game", T.C.gold)
         T.Update(h.summary, "Load a save and the roadmap fills in by itself.", T.C.dim)
         T.Show(h.alert, false)
+        T.Show(h.gone, false)
         return
+    end
+    local gone = tonumber(snap.gone) or 0
+    if gone > 0 then
+        T.Update(h.gone, string.format("Your game no longer has %d of the things this guide watches (a game update?). "
+            .. "Some steps cannot be detected until the mod is updated; check them off by hand meanwhile.", gone), T.C.warn)
+    end
+    T.Show(h.gone, gone > 0)
+    if h.memory then
+        local n = tonumber(snap.mem) or 0
+        T.Update(h.memory, string.format("The roadmap remembers %d %s from this save, so a step stays done even "
+            .. "after the game forgets it. Console: !roadmap forget clears them.", n, n == 1 and "moment" or "moments"))
     end
     local actName = "Act " .. tostring(snap.act)
     if snap.act == 0 then actName = "Prologue" elseif (snap.act or 0) >= 4 then actName = "Epilogue" end
@@ -1053,7 +1084,13 @@ local function refreshPage(snap)
         notice = comp.name .. " died before joining you. In most cases a companion who dies before being recruited "
             .. "cannot be revived, so the remaining steps are marked as missed."
     elseif c and c.lost then
-        notice = comp.name .. " has died or left for good in this playthrough. The remaining steps are marked as missed."
+        -- say why when the tracker knows: the journal entry, or the game's own reason
+        local why = Guides.ExplainLost(comp, c.lb)
+        if why then
+            notice = why .. " " .. comp.name .. " is gone for this playthrough; the remaining steps are marked as missed."
+        else
+            notice = comp.name .. " has died or left for good in this playthrough. The remaining steps are marked as missed."
+        end
     elseif c and c.dead and not c.rec and comp.revivable then
         notice = comp.revivable
     elseif c and c.dead and c.rec then
@@ -1098,7 +1135,7 @@ local function refreshPage(snap)
         local done, total, visible = 0, 0, 0
         for _, s in ipairs(section.steps) do
             local step = s.step
-            local st, ev = stepResult(snap, step.id)
+            local st, ev, remembered = stepResult(snap, step.id)
             local info = T.Status[st] or T.Status["?"]
             local shown = (st == S.AVAILABLE and step.optional) and T.Status.OPT or info
             T.Update(s.status, shown.label, shown.color)
@@ -1135,7 +1172,7 @@ local function refreshPage(snap)
             T.Show(s.details, not hideDetails)
             T.Show(s.meta, s.hasMeta and not hideDetails)
             T.Show(s.tracking, showTracking and true or false)
-            local evidence = describeEvidence(comp, c, step, st, ev)
+            local evidence = describeEvidence(comp, c, step, st, ev, remembered)
             T.Update(s.state, evidence, evidenceColor(st))
             T.Show(s.state, evidence ~= "")
 

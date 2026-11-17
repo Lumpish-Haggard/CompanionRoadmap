@@ -145,19 +145,36 @@ skip = { Q(SH, "CampFight_LaezelDied"), C.Lost("Laezel") },
 1. any `done` condition -> **DONE**
 2. checked off by hand -> **CHECKED**
 3. playing as this origin and the step is a recruit/romance step -> **N/A**
-4. any `skip` condition -> **N/A**
-5. any `fail` condition -> **MISSED**
-6. the companion is lost (see [Losing a companion](#losing-a-companion)) -> **MISSED**
-7. the `closes` deadline was reached -> **MISSED**
-8. a step in `after` is missed, or the step needs the companion and they can no longer join -> **MISSED** (blocked)
-9. the step's act is later than the campaign -> **LATER**
-10. a step in `after` is not finished, or the step needs the companion and they have not joined -> **WAITING**
-11. an earlier act and no `closes` -> **NOT SEEN** (or **N/A** if `optional`)
-12. otherwise **TO DO**
+4. a `done` condition the roadmap remembers seeing, while no `fail` condition holds -> **DONE** ("Remembered", see [Choice memory](#choice-memory))
+5. any `skip` condition -> **N/A**
+6. any `fail` condition -> **MISSED**
+7. the companion is lost (see [Losing a companion](#losing-a-companion)) -> **MISSED**
+8. the `closes` deadline was reached -> **MISSED**
+9. a step in `after` is missed, or the step needs the companion and they can no longer join -> **MISSED** (blocked)
+10. the step's act is later than the campaign -> **LATER**
+11. a step in `after` is not finished, or the step needs the companion and they have not joined -> **WAITING**
+12. an earlier act and no `closes` -> **NOT SEEN** (or **N/A** if `optional`)
+13. otherwise **TO DO**
 
 These are the labels the window shows (`UI/Theme.lua`); the code uses one-letter status codes (`CR.Status`).
 
 Then `alt` groups are resolved: once one path is done, the others become **N/A**; while two or more paths are still open, they become **CHOOSE**. Finally the first TO DO step becomes **NEXT** (required steps before optional ones), unless a CHOOSE step comes first: then the choice itself is what to do next, and no single step is marked.
+
+### Choice memory
+
+From 1.1 the tracker writes down, in the save, every watched flag it sees set (when it reads the save, or the moment the game sets it) and every knock-out it sees, together with the act. That is what rule 4 reads. For a guide writer this means:
+
+- A `done` flag that the game clears again later (at the end of a conversation, when a companion leaves, when Minthara is moved to Moonrise) still works, as long as the roadmap was running when it was set. Prefer the flag that marks the moment itself over one that only lasts.
+- Memory only ever turns a step into DONE. It cannot make a step missed, and a `fail` condition that holds always wins, so put real failures in `fail` rather than relying on a `done` flag going away.
+- When the game removes a companion for good, it gives a reason (the second argument of `PROC_Origins_CompanionLeavePermanently`). Write a plain sentence for any new reason in `Guides.LeaveReasons` (or `Guides.LeaveReasonsFor.<Companion>` when one companion uses a reason differently); it is shown on the companion's page.
+
+### Camp scenes
+
+A step that is completed by a camp scene (`NIGHT_*`) must agree with the game's camp-scene scheduler. With the game-data cache present, `tools/build_data.py` checks that:
+
+- `approval` is the value the scheduler asks for (one more than the stored value for a scene that starts a romance, since it asks for strictly more);
+- a scene that only plays while you are dating or partnered comes after a step that establishes that, through `after`;
+- when the scene is the step's only `done` route, whatever cancels it is in `fail` or `skip`, or comes no earlier than the step's `closes` deadline. A scene can also be only the question that leads to the real moment (Karlach asks how you will cool her down): then the step should be done by the moment itself.
 
 ## Deadlines (`closes`)
 

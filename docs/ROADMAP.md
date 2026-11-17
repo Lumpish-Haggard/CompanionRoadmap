@@ -19,7 +19,7 @@ This is a plan, not a promise. Order and scope will change with what players rep
 | **1.0.1** | Fixes | Known issues below, and a one-click report file that makes bug reports useful |
 | **1.0.2** | Nothing missed | A completeness review of every way to lose a companion, and the gaps found by the first real-save report |
 | **1.0.3** | Requests | Choose where notices appear; story paths shown as equal choices; portraits that show when a companion is dead or gone |
-| **1.1** | Trust | The mod remembers choices as they happen; data cross-checked against the game automatically |
+| **1.1** | Trust | The mod remembers what it has seen; data cross-checked against the game automatically; portraits that follow the companion's mood |
 | **1.2** | Camp and warnings | "Tonight at camp", warnings at the game's own "are you sure?" prompts, "do you have the item" |
 | **1.3** | Look | Overview page, mini tracker, icons, search and pins |
 | **1.4** | Everyone | Deeper companion content, camp followers and allies, paths and endings |
@@ -67,6 +67,12 @@ Where this stands in 1.0.2 (see the [changelog](../CHANGELOG.md) and the [covera
 - **Automatic cross-checks.** Approval thresholds, camp-scene requirements and "cancelled by" rules are compared with the game's scheduler on every build.
 - **Journal text in your language.** "Detected" lines quote the game's own journal entry, using the game's localisation.
 - **Patch-day check.** Warn inside the game when a watched flag no longer exists after a game update.
+
+Where this stands in 1.1 (see the [changelog](../CHANGELOG.md)):
+
+- **Done:** choice memory for everything the guide watches (the flags it reads, knock-outs, and a companion leaving for good together with the game's own reason); the automatic cross-checks, which found four scenes that need you to be someone's partner and one step that was marked done too early; the patch-day check. Journal text in your language arrived earlier, in 1.0.1. Portraits that follow the companion's mood, a request, ship with 1.1 as well.
+- **Moved:** the rest of the event log (conversations, dice results, approval changes, deaths, long rests and items) moves to 1.2, where tonight's camp scene, the approval log and item awareness need it.
+- **Still open:** the conversation index.
 
 ## 1.2: camp and warnings
 

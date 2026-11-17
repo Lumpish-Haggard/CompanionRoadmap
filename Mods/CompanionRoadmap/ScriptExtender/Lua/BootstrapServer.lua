@@ -6,6 +6,7 @@
 Ext.Require("Shared/Core.lua")
 Ext.Require("Data/Flags.lua")
 Ext.Require("Data/CompanionGuides.lua")
+Ext.Require("Tracker/Memory.lua")
 Ext.Require("Tracker/FlagEvaluator.lua")
 Ext.Require("Tracker/StateServer.lua")
 

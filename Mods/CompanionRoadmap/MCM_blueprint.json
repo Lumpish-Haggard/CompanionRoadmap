@@ -83,7 +83,7 @@
               "Name": "Companion portraits",
               "Type": "checkbox",
               "Default": true,
-              "Description": "Show a small picture next to each companion (the game's own Photo Mode stickers). Turn this off if the pictures do not appear."
+              "Description": "Show a small picture next to each companion (the game's own Photo Mode stickers). It changes with their approval, your romance and whether they are alive. Turn this off if the pictures do not appear."
             },
             {
               "Id": "esc_closes",

@@ -20,7 +20,7 @@ This is a plan, not a promise. Order and scope will change with what players rep
 | **1.0.2** | Nothing missed | A completeness review of every way to lose a companion, and the gaps found by the first real-save report |
 | **1.0.3** | Requests | Choose where notices appear; story paths shown as equal choices; portraits that show when a companion is dead or gone |
 | **1.1** | Trust | The mod remembers what it has seen; data cross-checked against the game automatically; portraits that follow the companion's mood |
-| **1.2** | Camp and warnings | "Tonight at camp", warnings at the game's own "are you sure?" prompts, "do you have the item" |
+| **1.2** | Camp and warnings | "Tonight at camp", warnings at the game's own "are you sure?" prompts, "do you have the item", opting out of a romance |
 | **1.3** | Look | Overview page, mini tracker, icons, search and pins |
 | **1.4** | Everyone | Deeper companion content, camp followers and allies, paths and endings |
 | **2.0** | Native | A real journal-style page (if the research works out), translations |
@@ -81,6 +81,7 @@ Where this stands in 1.1 (see the [changelog](../CHANGELOG.md)):
 - **Item awareness.** "You have the Night Orchid", "Infernal Iron 1 of 2".
 - **Approval log.** The last changes per companion and the conversation that caused them.
 - **Non-lethal reminder** before the Minthara and Minsc fights (needs research).
+- **Not interested** (requested on Nexus). Mark a companion's romance as unwanted for this playthrough, on their page or in the options. Their romance steps then only remind you when an advance is coming, so you know which conversation to turn it down in, and their romance warnings and notifications stop. Saved per savegame, like check-offs. The mod stays read-only: it cannot block a romance in the game, only help you avoid it.
 
 ## 1.3: look
 

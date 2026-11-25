@@ -26,7 +26,7 @@ BG3SE runs a separate Lua state for the server and for every client, even in sin
 
 ## Load order
 
-Both bootstraps load `Shared/Core.lua`, `Data/Flags.lua`, `Data/CompanionGuides.lua` (which loads `Data/Companions/*.lua`) and `Tracker/FlagEvaluator.lua`. The server adds `Tracker/StateServer.lua`. The client adds `Client/*`, `UI/*`. All files share the mod environment (`Mods.CompanionRoadmap`) through the global table `CR`.
+Both bootstraps load `Shared/Core.lua`, `Data/Flags.lua`, `Data/CompanionGuides.lua` (which loads `Data/Companions/*.lua`) and `Tracker/FlagEvaluator.lua`. The server adds `Tracker/Memory.lua`, `Tracker/Camp.lua`, `Tracker/ApprovalLog.lua` and `Tracker/StateServer.lua`. The client adds `Client/*`, `UI/*`. All files share the mod environment (`Mods.CompanionRoadmap`) through the global table `CR`.
 
 `Ext.Require` must only be called while bootstrapping: it resolves paths against the mod that is currently loading.
 
@@ -67,6 +67,14 @@ The probes above only see what is still in the save. Some of it disappears later
 - **Read** in a second pass over a step's `done` conditions, only when the first pass found nothing and none of the step's `fail` conditions holds. A remembered condition makes the step DONE and sends the act it was seen in as a third value. It outranks `skip` and the guesses (gone for good, window closed, not seen), and can never make a step MISSED.
 - `left` says why a companion is gone (`Guides.LeaveReasons`, shown on their page). A companion who is back in the team clears their entry. `!roadmap forget` empties the memory of the current save.
 
+### Not interested
+
+A player can mark a companion's romance as not wanted (mod variable `NoRomance`, `{ [player guid] = { [companion id] = true } }`). `BuildSnapshot` receives that set and, after the statuses are worked out, applies it to the companion's romance steps (`Guides.IsRomanceStep`: `kind = "romance"`, so story steps marked `romance` for the filter are untouched): what is DONE or CHECKED stays; a `romanceStart` step that can happen now stays TO DO (shown as `SAY NO`) but can never become NEXT; everything else becomes N/A. The snapshot lists the set in `nr`. The server sends no notices for those steps, and the warnings skip them.
+
+### Items
+
+A step can name an item it needs (`item = { label, has = condition }`). The story itself keeps "has item" flags on every player who can reach an item, camp chest included (`DB_HasItemEvent` for unique items, `DB_PlayerHasTemplateItem` for item templates, in `_GLOBAL_ItemEvents`), so `has` is an ordinary condition on those flags. For open steps the companion summary carries `items = { [step id] = 1 | 0 }`.
+
 ### Patch-day check
 
 On the first ready state of a session, `Srv.CheckGameData` looks up every flag in `Data/Flags.lua` with `Ext.StaticData.Get(guid, "Flag")`. When at least 80% are found, the lookup is trusted and the missing ones are named in the console, sent in the snapshot (`gone`) so the window shows a warning, and written into report files. Below that, the lookup itself is assumed not to work in this Script Extender build, and nothing is reported.
@@ -75,7 +83,7 @@ On the first ready state of a session, `Srv.CheckGameData` looks up every flag i
 
 ```lua
 {
-  p = 2, v = "1.1.0", ready = true,
+  p = 3, v = "1.2.0", ready = true,
   avatar = "<guid>", level = "SCL_Main_A", region = "Shadow-Cursed Lands", act = 2,
   markers = { act1Locked = false, colony = false, ... },
   steps = { SH_A1_PARTY = { "D", 2 }, MIN_A1_KO = { "M", -1 }, MIN_A1_RAID = { "D", 1, 1 }, ... },
@@ -83,16 +91,42 @@ On the first ready state of a session, `Srv.CheckGameData` looks up every flag i
   comps = { Shadowheart = { rec = true, a = 47, rel = "dating", dead = false, lost = false,
                             cnt = { nightsong = { bits = {1,0,1,0,0,0}, reached = false } } }, ... },
   ov = { SH_A1_IDOL = true },                        -- manual check-offs
+  nr = { Karlach = true },                           -- romances this player does not want
   mem = 12,                                          -- facts and departures remembered
   gone = 3,                                          -- watched flags missing from the game (only when > 0)
+  -- only while the window is open:
+  camp = { ok = true, at = "ELFSONG", tonight = { { s = "KAR_A3_DATE", g = "<night guid>" }, { c = "Laezel" } },
+           steps = { SH_A3_SWIM = { b = { { "a", "Shadowheart", 40, 31 }, { "p", "Shadowheart" } } } } },
+  alog = { rests = 4, c = { Shadowheart = { { d = -5, v = 28, a = 1, r = 3, c = "Karlach" } } } },
 }
 ```
 
+A companion summary may also hold `items` (see Items). `camp` is described under Tonight at camp, `alog` under Approval log.
+
 The evidence index points into the step's `done` list (positive) or `fail` list (negative), so the client can say *why* a step has its status without the server sending text. For a lost companion, `lb` in their summary is what explains it: the index of one of their `left` conditions, or the game's own reason.
+
+## Tonight at camp
+
+The game schedules camp scenes in the story goal `GLO_CampNights`. Each scene is a global `NIGHT_*` flag in `DB_CampNight(flag, priority)`, with the camps it plays in (`DB_CampNight_Camp`), its requirements (`DB_CampNight_Requirement` with one to seven flags per row, `_Approval`, `_Partner`, `_Dating`, `_CanStartDating`), what it is made of (camp conversations `_CRD`, campfire moments `_CFM`, dreams, romance nights...) and how long it is on offer (`_ExpiresAfter`, `_StartedExpiring`). A scene that played or was cancelled is removed from every one of these tables, and scenes are registered when the goal that owns them starts, so the tables hold exactly what the scheduler still considers.
+
+`Tracker/Camp.lua` reads them and repeats the scheduler's selection at a long rest (`PROC_CampNight_DecideCampNight`): scenes whose time is up are dropped first; then, again and again, the scene with the highest priority that plays at the active camp (`DB_ActiveCamp`), meets every requirement (`QRY_CampNight_MeetsRequirements`, rule by rule) and has someone to speak in it is picked, as long as it does not clash with the scenes already picked (one exclusive moment, one campfire moment, each speaker once per evening, night and morning). It never calls the story's own queries (some need you to be in camp already) and never writes anything. Who will be at camp is approximated by the team (`DB_PartOfTheTeam`, plus `DB_InCamp` for camp followers).
+
+For the guide's own scenes (a `NIGHT_*` flag in a step's `done`, unless the step says `campScene = false`) it also says what holds each one back, as codes the client puts into words: `a` approval (needed, yours), `p` partner, `d` dating, `s` a romance can no longer begin, `f` story flags missing (with the step that sets one, if the guide has it), `t` not at camp, `c` another camp, `q` ready but a more important scene comes first, `x` dropped at the next rest; and `x = n` for long rests left. Flags a pending scene depends on are added to the watched set, so the tab follows changes. It is a prediction: a few scenes adjust their requirements at the last moment (`PROC_CampNight_PreSelection_Hook`), and the multiplayer-only rules are not repeated.
+
+## Alerts
+
+Some moments need the player right then; the server sends them on the `Alert` channel and `UI/Alerts.lua` shows a heads-up where notices appear (notices wait meanwhile).
+
+- **Points of no return.** The game asks "are you sure?" with the built-in `ReadyCheckGlobal`, which cannot be listened to, so the server listens to the database rows the story writes as it opens the prompt: `DB_SHA_NightsongPrison_StartedReadyCheck` (the Shadowfell), `DB_MOO_Roof_ColonyTeleporterActivator` (the Colony, from Moonrise's roof), `DB_GLO_LevelSwap_ReadyCheck` with `ReadyCheck_ToBGFromSCL` or `ReadyCheck_ToLOWFromWYR` (leaving for Baldur's Gate, the Lower City) and `DB_END_ToMorphicPool_BoatUser` (the Morphic Pool). It sends a fresh snapshot, then `{ k = "ponr", d = deadline, id = ready check }`; the client shows that deadline's part of *Before you move on*. `ReadyCheckPassed(id)` / `ReadyCheckFailed(id)` close it; it also closes by itself after three minutes.
+- **Knock out, do not kill.** `EnteredCombat(character, combat)` for a companion with `knockOut` data, when `IsEnemy(companion, player)` and that step is still open for the player: `{ k = "ko", c = companion }`. Not repeated within two minutes.
+
+## Approval log
+
+`Tracker/ApprovalLog.lua` keeps the last ten approval changes per companion and player in the mod variable `Log`. `ApprovalRatingChanged(companion, player, value)` carries the new value, so the change is measured against the value read when the save loaded (never against the log, which may be stale). The speaker is the main NPC of the conversation the player is in (`DB_DialogPlayers`, `DB_DialogNPCs`): a companion's id, or the localisation handle from `GetDisplayName`, resolved on the client. `LongRestFinished` counts rests, so an entry can say how long ago it happened.
 
 ## Synchronisation
 
-- Channels are created with `Ext.Net.CreateChannel(ModuleUUID, ...)` on both sides: `Hello`, `Override` (client -> server), `State`, `Toast` (server -> client).
+- Channels are created with `Ext.Net.CreateChannel(ModuleUUID, ...)` on both sides: `Hello`, `Override`, `Report`, `Romance` (client -> server), `State`, `Toast`, `Alert`, `Report` (server -> client).
 - A client sends `Hello` when the game reaches the `Running` state and whenever the window opens or closes. The server remembers each peer and whether its window is open.
 - Osiris listeners mark the state dirty only for watched flags/quests and tracked companions. A 400 ms debounce coalesces bursts (a single dialogue can set dozens of flags).
 - On flush the server rebuilds each peer's snapshot. Open windows get the snapshot. Every peer gets notifications for steps that changed to DONE (or to MISSED, if critical and not optional).
@@ -108,6 +142,8 @@ The server maps a peer to its avatar with `GetReservedUserID` on `DB_Avatars` (f
 |---|---|---|
 | Manual check-offs | mod variable `Overrides` (`Ext.Vars.RegisterModVariable`, persistent) | per savegame |
 | Choice memory | mod variable `Memory` (same) | per savegame |
+| Romances not wanted | mod variable `NoRomance` (same) | per savegame and player |
+| Approval log, long rests seen | mod variable `Log` (same) | per savegame and player |
 | Settings, hotkey, last companion | `Script Extender/CompanionRoadmap/settings.json` (`Ext.IO`) | per user |
 | Settings (when MCM is installed) | mirrored to MCM; changes in either place sync both ways | per MCM profile |
 | Window size/position | ImGui's own `imgui.ini` (sizes use `FirstUseEver`) | per user |
@@ -136,7 +172,7 @@ The server maps a peer to its avatar with `GetReservedUserID` on `DB_Avatars` (f
 
 ## Report file
 
-`!roadmap report` and *Options > Create a report file* make the server write `Script Extender/CompanionRoadmap/report.json`: the snapshot, every watched flag and journal step that is set (probed on every target the flag allows), the raw per-companion facts (dead, permanently defeated, in the team, knocked out, approval, dating, partnered), the camp scheduler tables, the choice memory and any flags the patch-day check could not find. It holds game identifiers only. `tools/test_harness.py` can rebuild a world from a report (`replay_report`), which turns bug reports into regression tests: put the file in `tests/fixtures/` and optionally add an `"expect": { "STEP_ID": "D" }` object.
+`!roadmap report` and *Options > Create a report file* make the server write `Script Extender/CompanionRoadmap/report.json`: the snapshot, every watched flag and journal step that is set (probed on every target the flag allows), the raw per-companion facts (dead, permanently defeated, in the team, knocked out, approval, dating, partnered), the camp scheduler's tables with the requirement flags that are set (`scheduler`) and the prediction made from them (`tonight`), the choice memory, the approval log, the romances marked as not wanted and any flags the patch-day check could not find. It holds game identifiers only. `tools/test_harness.py` can rebuild a world from a report (`replay_report`), which turns bug reports into regression tests: put the file in `tests/fixtures/` and optionally add an `"expect": { "STEP_ID": "D" }` object.
 
 ## Hotkey
 
@@ -144,7 +180,7 @@ With MCM: the `toggle_roadmap` keybinding (`MCM.Keybinding.SetKeyDownCallback`) 
 
 ## Script Extender APIs used
 
-`Ext.Net.CreateChannel` (v22+), `Ext.IMGUI` (windows, child windows, tab bars, trees, tables, tooltips, selectables, combos, progress bars, `LoadFont`), `Ext.Vars.RegisterModVariable`, `Ext.Osiris.RegisterListener` (events, and the user-defined `PROC_Origins_CompanionLeavePermanently`), `Ext.StaticData.Get`, `Ext.Timer.WaitForRealtime`, `Ext.IO.LoadFile/SaveFile`, `Ext.Events` (`SessionLoaded`, `GameStateChanged`, `KeyInput`, `ResetCompleted`), `Ext.RegisterConsoleCommand`. `Config.json` requires v25.
+`Ext.Net.CreateChannel` (v22+), `Ext.IMGUI` (windows, child windows, tab bars, trees, tables, tooltips, selectables, combos, progress bars, `LoadFont`), `Ext.Vars.RegisterModVariable`, `Ext.Osiris.RegisterListener` (events, the user-defined `PROC_Origins_CompanionLeavePermanently`, and row inserts into story databases with `"after"`), `Ext.StaticData.Get`, `Ext.Timer.WaitForRealtime`, `Ext.IO.LoadFile/SaveFile`, `Ext.Events` (`SessionLoaded`, `GameStateChanged`, `KeyInput`, `ResetCompleted`), `Ext.RegisterConsoleCommand`. `Config.json` requires v25.
 
 ## Testing
 
@@ -152,7 +188,7 @@ With MCM: the `toggle_roadmap` keybinding (`MCM.Keybinding.SetKeyDownCallback`) 
 
 - The IMGUI mock is generated from BG3SE's property map (`GameDefinitions/PropertyMaps/IMGUI.inl`). Unknown element types, properties, colour slots, style variables or conditions, unknown fonts, duplicate interactive ids, too many table cells, access to destroyed elements and non-Latin-1 text all raise errors. Every such error is also recorded, so a test fails even when the mod's own `pcall` swallowed it.
 - A fake Osiris world provides flags, journal steps, databases and approval; messages travel between the states as JSON, with a simulated clock for timers.
-- Scenarios cover boot, live updates and notifications, every UI interaction, the window layout (fonts, act sections, next-step highlight, warning links, filters), the Act 1 lock-out, Minthara's knockout and dependencies, origin characters, console commands, MCM integration, the choice memory (including a save that is reloaded from the stored mod variable), the patch-day check and the mood portraits.
+- Scenarios cover boot, live updates and notifications, every UI interaction, the window layout (fonts, act sections, next-step highlight, warning links, filters), the Act 1 lock-out, Minthara's knockout and dependencies, origin characters, console commands, MCM integration, the choice memory (including a save that is reloaded from the stored mod variable), the patch-day check, the mood portraits, tonight at camp (with camp scenes declared exactly as the Patch 8 story declares them), the heads-ups at points of no return and fights, not interested, the approval log and items.
 - `tools/build_data.py`, with the local game-data cache present, also compares every step that is completed by a camp scene with the game's camp-scene scheduler (`DB_CampNight_Requirement_*`, `DB_CampNight_CancelledBy`): approval thresholds (a scene that starts a romance asks for strictly more than its stored value), scenes that need you to be dating or partnered (a step in the `after` chain must establish it), and what cancels a scene when that scene is the step's only way to be done.
 
 The harness cannot prove rendering or real Osiris behaviour: changes that touch either should also be tried in game.

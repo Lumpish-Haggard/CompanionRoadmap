@@ -63,6 +63,7 @@ CR.Guides.Register {
         },
         {
             id = "HAL_A1_GROVE", act = 1, kind = "story", critical = true,
+            campScene = false,   -- the celebration only proves the Grove was saved
             title = "Save the Grove: defeat the goblin leaders",
             where = "Goblin Camp (Dror Ragzlin, Priestess Gut, Minthara)",
             todo = {

@@ -24,6 +24,8 @@ Set.Defaults = {
     hotkey = { key = "F7", mods = {} },   -- only used when MCM is not installed
     notifications = true,                 -- toasts when a step is completed or missed
     notifyAll = false,                    -- false: only romance / critical steps
+    warnReadyChecks = true,               -- what is still open when the game asks "are you sure?" before a point of no return
+    koReminder = true,                    -- when a fight starts with a companion you must knock out, not kill
     toastPosition = "right-top",          -- one of Set.ToastKeys
     toastX = 100,                         -- custom position: 0 = left edge, 100 = right edge
     toastY = 30,                          -- custom position: 0 = top, 100 = bottom
@@ -42,6 +44,8 @@ Set.Defaults = {
 local MCM_IDS = {
     notifications = "notifications",
     notifyAll = "notify_all",
+    warnReadyChecks = "warn_ready_checks",
+    koReminder = "ko_reminder",
     toastPosition = "notify_position",
     toastX = "notify_x",
     toastY = "notify_y",

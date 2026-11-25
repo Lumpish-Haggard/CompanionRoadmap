@@ -10,8 +10,8 @@
 CR = CR or {}
 
 CR.ModName = "Companion & Romance Roadmap"
-CR.Version = "1.1.0"
-CR.Protocol = 2                                       -- bump when the net payload changes
+CR.Version = "1.2.0"
+CR.Protocol = 3                                       -- bump when the net payload changes
 CR.NULL = "NULL_00000000-0000-0000-0000-000000000000" -- Osiris NULL GUID (global flags, "any player")
 CR.Verbose = false                                    -- toggled with the console command "!roadmap debug"
 
@@ -133,6 +133,9 @@ end
 --   Hello    client -> server   subscribe + request a snapshot ({open=bool})
 --   Override client -> server   manual check-off toggle ({id=stepId, value=bool})
 --   Report   client -> server   write the report file; server -> client: the result
+--   Alert    server -> client   a heads-up that needs the player now: a point of no
+--                               return being asked about, a companion to knock out
+--   Romance  client -> server   "Not interested" in a companion's romance ({id=companion, value=bool})
 -- Channels must be created with identical names on both sides.
 -- -----------------------------------------------------------------------------
 CR.Net = { Ready = false }
@@ -149,6 +152,8 @@ function CR.Net.Init()
         CR.Net.Hello = Ext.Net.CreateChannel(ModuleUUID, "Hello")
         CR.Net.Override = Ext.Net.CreateChannel(ModuleUUID, "Override")
         CR.Net.Report = Ext.Net.CreateChannel(ModuleUUID, "Report")
+        CR.Net.Alert = Ext.Net.CreateChannel(ModuleUUID, "Alert")
+        CR.Net.Romance = Ext.Net.CreateChannel(ModuleUUID, "Romance")
     end)
     if not ok then
         CR.Error("Could not create network channels: %s", tostring(err))
@@ -163,8 +168,10 @@ end
 -- bootstrap, with identical settings on both sides.
 --   Overrides   manual check-offs
 --   Memory      moments the mod saw happen (Tracker/Memory.lua)
+--   NoRomance   romances a player marked as not wanted: { [player guid] = { [companion id] = true } }
+--   Log         the last approval changes and the long rests seen (Tracker/ApprovalLog.lua)
 -- -----------------------------------------------------------------------------
-CR.SaveVars = { "Overrides", "Memory" }
+CR.SaveVars = { "Overrides", "Memory", "NoRomance", "Log" }
 
 function CR.RegisterVars()
     if not (Ext.Vars and Ext.Vars.RegisterModVariable) then

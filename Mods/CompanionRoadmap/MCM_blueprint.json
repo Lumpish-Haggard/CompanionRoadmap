@@ -130,6 +130,20 @@
               "Description": "By default only romance and important steps produce notifications."
             },
             {
+              "Id": "warn_ready_checks",
+              "Name": "Warn me before a point of no return",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "When the game asks whether you are ready to move on (the Shadowfell, the Mind Flayer Colony, leaving for Baldur's Gate, the Lower City, the Morphic Pool), show what is still open right then."
+            },
+            {
+              "Id": "ko_reminder",
+              "Name": "Remind me to knock out, not kill",
+              "Type": "checkbox",
+              "Default": true,
+              "Description": "When a fight starts with a companion you can only recruit by knocking them out (Minthara, Minsc), remind you to use Non-Lethal Attacks."
+            },
+            {
               "Id": "notify_position",
               "Name": "Where notices appear",
               "Type": "enum",

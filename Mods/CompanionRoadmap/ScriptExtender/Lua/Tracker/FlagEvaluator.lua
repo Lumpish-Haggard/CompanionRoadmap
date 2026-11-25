@@ -414,7 +414,11 @@ local function recallDone(ctx, step)
     return nil
 end
 
-local function evaluateCompanion(ctx, comp, prog, overrides)
+--- `declined`: the player marked this companion's romance as not wanted ("Not
+--- interested"). Romance steps that already happened stay DONE; the moment a romance
+--- can begin stays open while it can happen, so the window can say where to turn it
+--- down; every other romance step no longer applies (N/A) and none becomes NEXT.
+local function evaluateCompanion(ctx, comp, prog, overrides, declined)
     local lost, why, lostBy = ctx:Lost(comp)
     ctx.comp = comp
     local result = {}       -- stepId -> { status, evidence, act it is remembered from (or nil) }
@@ -520,6 +524,19 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
         if step.alt and (openAlt[step.alt] or 0) >= 2 and r[1] == S.AVAILABLE then r[1] = S.CHOICE end
     end
 
+    -- Not interested: only the open moment where the romance can begin is kept
+    local unwanted = {}
+    if declined then
+        for _, step in ipairs(comp.steps) do
+            local r = result[step.id]
+            if Guides.IsRomanceStep(step) and r[1] ~= S.DONE and r[1] ~= S.OVERRIDE then
+                unwanted[step.id] = true
+                local canBeginNow = step.romanceStart and (r[1] == S.AVAILABLE or r[1] == S.CHOICE)
+                if not canBeginNow then r[1], r[2], r[3] = S.NA, 0, nil end
+            end
+        end
+    end
+
     -- The first available step becomes "next" (required steps win over optional ones).
     -- A choice between paths that comes before any required step is itself what to
     -- do next, so no single step is marked (not even an optional one before it).
@@ -530,7 +547,7 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
             nextStep = nil
             break
         end
-        if st == S.AVAILABLE then
+        if st == S.AVAILABLE and not unwanted[step.id] then
             if not step.optional then nextStep = step break end
             nextStep = nextStep or step
         end
@@ -556,6 +573,14 @@ local function evaluateCompanion(ctx, comp, prog, overrides)
         elseif ctx:Relationship(comp, "ex") then info.rel = "ex"
         elseif comp.romance and comp.romance.closed and ctx:FirstTrue(comp.romance.closed) then info.rel = "closed" end
     end
+    -- items an open step needs: does the party have one? (the story's own flags)
+    for _, step in ipairs(comp.steps) do
+        local st = result[step.id][1]
+        if step.item and st ~= S.DONE and st ~= S.OVERRIDE and st ~= S.NA and st ~= S.MISSED then
+            info.items = info.items or {}
+            info.items[step.id] = ctx:Check(step.item.has) and 1 or 0
+        end
+    end
     if #comp.counters > 0 then
         info.cnt = {}
         for _, counter in ipairs(comp.counters) do
@@ -572,8 +597,10 @@ end
 --- Builds the complete snapshot for one avatar.
 --- @param avatar string|nil  avatar GUID
 --- @param overrides table    stepId -> true
-function E.BuildSnapshot(avatar, overrides)
+--- @param declined table|nil companion id -> true: romances this player does not want
+function E.BuildSnapshot(avatar, overrides, declined)
     overrides = overrides or {}
+    declined = declined or {}
     local ctx = E.NewContext(avatar)
     local mem = ctx.mem
     -- facts first seen while the act is still being worked out are stamped right after
@@ -594,9 +621,15 @@ function E.BuildSnapshot(avatar, overrides)
         ov = {},
     }
     for id, v in pairs(overrides) do if v then snap.ov[id] = true end end
+    for id, v in pairs(declined) do
+        if v and Guides.ById[id] then
+            snap.nr = snap.nr or {}
+            snap.nr[id] = true
+        end
+    end
     for _, comp in ipairs(Guides.Companions) do
         local ok, err = pcall(function()
-            local steps, info = evaluateCompanion(ctx, comp, prog, overrides)
+            local steps, info = evaluateCompanion(ctx, comp, prog, overrides, declined[comp.id] and comp.romanceable)
             for id, r in pairs(steps) do snap.steps[id] = r end
             snap.comps[comp.id] = info
         end)

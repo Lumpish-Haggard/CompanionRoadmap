@@ -60,6 +60,7 @@ local BASELINE_NUDGE = { 0, 3 }
 -- -----------------------------------------------------------------------------
 -- Helpers
 -- -----------------------------------------------------------------------------
+local refreshApprovalLog     -- defined with the page refresh below
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 
 --- Status, evidence index, and (for a step that is DONE from the choice memory)
@@ -101,7 +102,14 @@ local SELF_EXPLAINING = { N = true, A = true, U = true, ["?"] = true }
 --- One plain sentence under a step: what the game recorded, or why it is closed.
 --- `remembered` is the act a DONE step is remembered from, when the save itself no
 --- longer shows it (0 = act unknown).
-local function describeEvidence(comp, c, step, status, evidence, remembered)
+local function describeEvidence(comp, c, step, status, evidence, remembered, declined)
+    if declined and Guides.IsRomanceStep(step) and (status == S.NA or status == S.AVAILABLE) then
+        if status == S.AVAILABLE then
+            return "You marked this romance as not wanted. This is where it can begin: turn " .. comp.name
+                .. " down when asked."
+        end
+        return "Not wanted: you marked " .. comp.name .. "'s romance as not for this playthrough."
+    end
     if status == S.DONE and remembered ~= nil and step.done[evidence] then
         local when = (type(remembered) == "number" and remembered >= 1) and (" in Act " .. remembered) or " earlier"
         return "Remembered: " .. Guides.Explain(step.done[evidence], comp, "done")
@@ -127,6 +135,108 @@ local function describeEvidence(comp, c, step, status, evidence, remembered)
     end
     if SELF_EXPLAINING[status] then return "" end
     return T.StatusHelp[status] or ""
+end
+
+--- Whether this player marked the companion's romance as not wanted ("Not interested").
+local function declinedRomance(snap, comp)
+    return snap ~= nil and snap.nr ~= nil and comp ~= nil and snap.nr[comp.id] == true
+end
+
+-- -----------------------------------------------------------------------------
+-- Tonight at camp, in words
+-- -----------------------------------------------------------------------------
+
+-- What a camp scene still needs, most useful first (see Tracker/Camp.lua for the codes).
+local NEED_ORDER = { a = 1, p = 2, d = 2, s = 3, t = 4, f = 5 }
+
+--- One thing a camp scene still needs, as words that follow "Needs" (or nil).
+local function campNeed(b, comp, snap)
+    local kind = b[1]
+    local who = Guides.ById[b[2] or ""] or comp
+    local name = who and who.name or "them"
+    if kind == "a" then
+        if b[4] ~= nil then return string.format("%d approval with %s (you have %d)", b[3], name, b[4]) end
+        return string.format("%d approval with %s", b[3], name)
+    elseif kind == "p" then
+        return "you to be " .. name .. "'s partner"
+    elseif kind == "d" then
+        return "you to be dating " .. name
+    elseif kind == "s" then
+        return "a romance with " .. name .. " to be still possible"
+    elseif kind == "t" then
+        return name .. " at your camp"
+    elseif kind == "f" then
+        local step = b[3] and Guides.StepById[b[3]]
+        if step and not (Set.Spoilers() == "hide" and step.act > reachedAct(snap)) then
+            return '"' .. step.title .. '" first'
+        end
+        return "something else to happen in the story first"
+    end
+    return nil
+end
+
+local CAMP_STATE = {
+    c = "It only plays at another camp.",
+    q = "Ready, but a more important scene comes first: it waits for a later night.",
+    x = "Its time ran out: the game drops it at your next long rest.",
+}
+
+--- Why a camp scene is not playing tonight, as one or two sentences. `skipApproval`
+--- leaves out what the step's own approval line already says.
+local function campWaiting(e, comp, snap, skipApproval)
+    local needs, other = {}, {}
+    for _, b in ipairs(e.b or {}) do
+        if b[1] == "a" and skipApproval then
+            -- shown above it: "Needs 40+ approval with ... - you have ..."
+        elseif NEED_ORDER[b[1]] then
+            local words = campNeed(b, comp, snap)
+            if words then needs[#needs + 1] = { NEED_ORDER[b[1]], words } end
+        elseif CAMP_STATE[b[1]] then
+            other[#other + 1] = CAMP_STATE[b[1]]
+        end
+    end
+    table.sort(needs, function(x, y) return x[1] < y[1] end)
+    local parts = {}
+    if #needs > 0 then
+        local words = {}
+        for _, n in ipairs(needs) do words[#words + 1] = n[2] end
+        parts[1] = "Needs " .. table.concat(words, "; ") .. "."
+    end
+    for _, o in ipairs(other) do parts[#parts + 1] = o end
+    return table.concat(parts, " ")
+end
+
+--- How many long rests a scene can still play at, in words (or nil).
+local function campExpiry(e)
+    if not e or e.x == nil or e.x <= 0 then return nil end
+    if e.x == 1 then return "Last chance: only at your next long rest." end
+    return string.format("It can only play at the next %d long rests.", e.x)
+end
+
+--- The line under a step that a camp scene completes, or "" (and its colour).
+--- `inTab`: for the "Tonight at camp" tab, which needs no "Camp scene:" in front.
+local function campLine(snap, comp, step, status, inTab)
+    local camp = snap and snap.camp
+    local e = camp and camp.ok and camp.steps and camp.steps[step.id]
+    -- only for steps that are open now: some later-act scenes are registered early
+    if not e or not OPEN_LIKE[status] then return "", T.C.dim end
+    local expiry = campExpiry(e)
+    if e.t then
+        local text = "Tonight at camp: this scene plays at your next long rest."
+        if declinedRomance(snap, comp) and Guides.IsRomanceStep(step) then
+            text = "Tonight at camp: this romance can begin at your next long rest. Say no if you are asked."
+        end
+        return text .. (expiry and (" " .. expiry) or ""), T.C.good
+    end
+    local worrying = false
+    for _, b in ipairs(e.b or {}) do
+        if b[1] ~= "q" and b[1] ~= "c" then worrying = true end
+    end
+    local text = campWaiting(e, comp, snap, not inTab and step.approval ~= nil)
+    if text == "" then text = "Waiting for a night at camp." end
+    if not inTab then text = "Camp scene: " .. text end
+    if expiry then text = text .. " " .. expiry end
+    return text, (worrying or expiry) and T.C.warn or T.C.dim
 end
 
 local function evidenceColor(status)
@@ -285,6 +395,10 @@ local function buildOptions(parent)
     section(parent, "Notifications")
     addCheckbox(parent, "Show a notice when a step is completed or missed", "notifications")
     addCheckbox(parent, "Notify for every step, not only romance and important ones", "notifyAll")
+    addCheckbox(parent, "When the game asks if you are ready to pass a point of no return, show what is still open",
+        "warnReadyChecks")
+    addCheckbox(parent, "When a fight starts with a companion you can only recruit alive, remind you to knock them out",
+        "koReminder")
     UI.h.toastPos = addCombo(parent, "Where notices appear", Set.ToastChoices,
         indexOf(Set.ToastKeys, Set.Get("toastPosition")), function(i) Set.Set("toastPosition", Set.ToastKeys[i]) end)
     UI.h.toastX = addPercentSlider(parent, "Across (0 = left edge, 100 = right edge)", "toastX")
@@ -325,6 +439,28 @@ local function buildOptions(parent)
     end
     T.Text(parent, "Check-offs are stored in your save file.", T.C.faint, "small")
     UI.h.memory = T.Text(parent, "", T.C.faint, "small")
+    parent:AddSpacing()
+
+    -- "Not interested": per save and per player, like check-offs (also on each companion's page)
+    section(parent, "Romances you do not want")
+    T.Text(parent, "Tick a companion whose romance you do not want in this playthrough. Their romance steps then "
+        .. "only show where the romance can begin, so you know when to say no, and their romance notices stop. "
+        .. "The roadmap cannot stop a romance in the game, only help you avoid it.", T.C.dim, "small")
+    local grid = parent:AddTable("##crNoRomance", 2)
+    grid:AddColumn("A", "WidthStretch")
+    grid:AddColumn("B", "WidthStretch")
+    UI.h.noRomance = {}
+    local row, n = nil, 0
+    for _, comp in ipairs(Guides.Companions) do
+        if comp.romanceable then
+            if n % 2 == 0 then row = grid:AddRow() end
+            n = n + 1
+            local cb = row:AddCell():AddCheckbox(comp.name .. "###nrOpt_" .. comp.id, false)
+            T.SetFont(cb, "small")
+            cb.OnChange = function(_, checked) CR.Client.SetDeclined(comp.id, checked) end
+            UI.h.noRomance[comp.id] = cb
+        end
+    end
     parent:AddSpacing()
 
     section(parent, "Report a problem")
@@ -486,6 +622,7 @@ local function buildWindow()
 
     h.tabs = win:AddTabBar("##crMain")
     h.tabRoadmap = h.tabs:AddTabItem("Companions###crTabRoadmap")
+    h.tabCamp = h.tabs:AddTabItem("Tonight at camp###crTabCamp")
     h.tabWarn = h.tabs:AddTabItem("Before you move on###crTabWarn")
     h.tabOptions = h.tabs:AddTabItem("Options###crTabOptions")
 
@@ -504,6 +641,9 @@ local function buildWindow()
     T.SetProp(content, "AlwaysUseWindowPadding", true)
     T.SetStyle(content, "WindowPadding", 20 * s, 10 * s)
     UI.content = content
+
+    -- Tonight at camp
+    h.campBody = scrollArea(h.tabCamp, "##crCampScroll", 20, 12):AddGroup("##crCampBody")
 
     -- Before you move on
     h.warnBody = scrollArea(h.tabWarn, "##crWarnScroll", 20, 12):AddGroup("##crWarnBody")
@@ -537,6 +677,10 @@ local function buildStep(tbl, comp, step)
     s.meta = T.Text(s.tree, meta, T.C.dim, "small")
     T.Show(s.meta, s.hasMeta)
     s.req = T.Text(s.tree, "", T.C.text, "small")
+    s.camp = T.Text(s.tree, "", T.C.dim, "small")      -- Tonight at camp, for steps a camp scene completes
+    T.Show(s.camp, false)
+    s.item = T.Text(s.tree, "", T.C.dim, "small")      -- "You have the Night Orchid", for steps that need an item
+    T.Show(s.item, false)
 
     s.details = s.tree:AddGroup("##det_" .. step.id)
     if #step.todo > 0 then
@@ -674,6 +818,12 @@ local function buildPage(comp)
     page.status = T.Text(head, "", T.C.text, "small")
 
     page.approval = addBar(content)
+    -- the last approval changes (Tracker/ApprovalLog.lua); a shared id keeps it folded or open on every page
+    page.alog = content:AddTree("Recent approval changes###crApprovalLog")
+    T.SetFont(page.alog, "small")
+    T.SetColor(page.alog, T.C.dim)
+    page.alogBody = page.alog:AddGroup("##crApprovalLogBody")
+    T.Show(page.alog, false)
     page.notice = T.Text(content, "", T.C.warn, "small")
     T.Show(page.notice, false)
 
@@ -702,6 +852,15 @@ local function buildPage(comp)
         local romance = content:AddTree((comp.romanceable and "Romance path" or "Romance") .. "###crRomance")
         T.SetColor(romance, T.C.romance)
         page.notes = buildNotes(romance, comp.romanceNotes, T.BULLET, T.C.romance)
+        if comp.romanceable then
+            -- "Not interested" (requested on Nexus): stored in the save, for this player
+            local cb = romance:AddCheckbox("Not interested in a romance with " .. comp.name
+                .. " in this playthrough###nr_" .. comp.id, false)
+            T.SetFont(cb, "small")
+            T.SetColor(cb, T.C.dim)
+            cb.OnChange = function(_, checked) CR.Client.SetDeclined(comp.id, checked) end
+            page.noRomance = cb
+        end
     end
 
     content:AddSpacing()
@@ -845,10 +1004,12 @@ function UI.JumpTo(compId, stepId)
     pcall(function() s.tree:SetOpen(true, "Always") end)
 end
 
---- Collects what the "Before you move on" tab shows, as plain data.
+--- Collects what the "Before you move on" tab shows, as plain data. Also used by the
+--- heads-up shown when the game asks about a point of no return (UI/Alerts.lua).
 local function collectWarnings(snap)
     local groups, count = {}, 0
     local romanceOnly = Set.Get("romanceOnly")
+    local declined = snap.nr or {}
     local hasPartner = false
     for _, comp in ipairs(Guides.Companions) do
         local c = compSnapshot(snap, comp)
@@ -891,10 +1052,15 @@ local function collectWarnings(snap)
                                     table.insert(g.recruit, item)
                                 end
                             elseif step.romanceStart then
-                                if not hasPartner and not pursuing then table.insert(g.starts, item) end
+                                -- not for a romance the player said they do not want
+                                if not hasPartner and not pursuing and not declined[comp.id] then
+                                    table.insert(g.starts, item)
+                                end
                             elseif step.romance then
                                 -- romance beats only matter for the companion you are pursuing
-                                if pursuing then table.insert(g.romance, item) end
+                                if pursuing and not (declined[comp.id] and Guides.IsRomanceStep(step)) then
+                                    table.insert(g.romance, item)
+                                end
                             elseif step.critical and not step.optional and not romanceOnly then
                                 table.insert(g.important, item)
                             end
@@ -918,6 +1084,7 @@ local function collectWarnings(snap)
     count = count + #dead
     return groups, dead, count
 end
+UI.CollectWarnings = collectWarnings
 
 local function warningsKey(groups, dead)
     local parts = {}
@@ -1022,6 +1189,118 @@ local function refreshWarnings(snap)
     end
 end
 
+--- One scene the game would play tonight, in words: text, companion, guide step.
+local function tonightLabel(entry)
+    if entry.s then
+        local step, owner = Guides.StepById[entry.s], Guides.StepOwner[entry.s]
+        if step and owner then return owner.name .. T.SEP_SHORT .. step.title, owner, step end
+    end
+    local comp = entry.c and Guides.ById[entry.c] or nil
+    if comp then return (entry.r and "A romance scene with " or "A scene with ") .. comp.name, comp, nil end
+    if entry.d then return "A dream", nil, nil end
+    if entry.e then return "A moment around the campfire", nil, nil end
+    return "A camp scene", nil, nil
+end
+
+local CAMP_NOT_NOW = {
+    locked = "You cannot rest at camp right now, so no camp scene can play.",
+    fallback = "Your camp is not the usual one right now (you are on your way somewhere), so the roadmap cannot tell which scene plays.",
+    nocamp = "There is no camp in this region yet.",
+}
+
+--- The "Tonight at camp" tab: what the game would play at your next long rest, and
+--- what holds back the guide's other camp scenes. Rebuilt only when it changes.
+local function refreshCamp(snap)
+    local h = UI.h
+    if not h.campBody then return end
+    local camp = snap and snap.ready and snap.camp or nil
+    local okKey, key = pcall(Ext.Json.Stringify, { camp or false, snap and snap.nr or false, Set.Spoilers(),
+        snap and snap.steps and true or false })
+    key = okKey and key or tostring(CR.Now())
+    -- statuses decide which waiting scenes are listed
+    if camp and camp.steps then
+        local parts = { key }
+        for id in pairs(camp.steps) do parts[#parts + 1] = id .. "=" .. stepResult(snap, id) end
+        table.sort(parts)
+        key = table.concat(parts, ";")
+    end
+    if key == h.campKey then return end
+    h.campKey = key
+    local body = h.campBody
+    pcall(function() body:RemoveAllChildren() end)
+
+    if not camp then
+        T.Text(body, snap and snap.ready and "Open the roadmap again in a moment." or "No game data yet. Load a save.", T.C.faint)
+        return
+    end
+    if not camp.ok then
+        T.Text(body, CAMP_NOT_NOW[camp.why] or CAMP_NOT_NOW.nocamp, T.C.dim)
+        return
+    end
+
+    T.Text(body, "If you rest now", T.C.gold, "heading")
+    T.Text(body, "What the game would play at your next long rest. It picks the most important scene whose "
+        .. "conditions are met, then others that do not clash with it. It decides when you rest, so anything "
+        .. "that changes before then can change the pick.", T.C.dim, "small")
+    if #camp.tonight == 0 then
+        T.Text(body, "No camp scene is waiting for tonight: the night passes quietly.", T.C.text)
+    end
+    for i, entry in ipairs(camp.tonight) do
+        local text, comp, step = tonightLabel(entry)
+        if step then
+            local sel = body:AddSelectable(string.format("%s   %s###tn_%d_%s", T.BULLET, text, i, step.id))
+            T.SetColor(sel, T.C.text)
+            sel.OnClick = function()
+                T.SetProp(sel, "Selected", false)
+                UI.JumpTo(comp.id, step.id)
+            end
+        else
+            T.Bullet(body, text, T.C.dim, T.BULLET, T.C.goldDim)
+        end
+        local romance = (step and Guides.IsRomanceStep(step)) or (not step and entry.r)
+        if romance and declinedRomance(snap, comp) then
+            T.Text(body, "You do not want this romance: turn " .. comp.name .. " down if you are asked.", T.C.romance, "small")
+        end
+        local e = step and camp.steps[step.id]
+        local expiry = campExpiry(e)
+        if expiry then T.Text(body, expiry, T.C.warn, "small") end
+    end
+    body:AddSpacing()
+    body:AddSeparator()
+    body:AddSpacing()
+
+    -- the guide's other scenes the game is holding, with what each one still needs
+    local waiting = {}
+    for _, comp in ipairs(Guides.Companions) do
+        for _, step in ipairs(comp.steps) do
+            local e = camp.steps[step.id]
+            local st = stepResult(snap, step.id)
+            local unwanted = declinedRomance(snap, comp) and Guides.IsRomanceStep(step)
+            if e and not e.t and OPEN_LIKE[st] and not unwanted then
+                waiting[#waiting + 1] = { comp = comp, step = step, e = e }
+            end
+        end
+    end
+    T.Text(body, "Waiting for a night at camp", T.C.gold, "heading")
+    if #waiting == 0 then
+        T.Text(body, "None of this guide's camp scenes is waiting right now.", T.C.dim, "small")
+    end
+    for _, w in ipairs(waiting) do
+        local sel = body:AddSelectable(string.format("%s   %s%s%s###tw_%s", T.BULLET, w.comp.name, T.SEP_SHORT,
+            w.step.title, w.step.id))
+        T.SetColor(sel, T.C.text)
+        sel.OnClick = function()
+            T.SetProp(sel, "Selected", false)
+            UI.JumpTo(w.comp.id, w.step.id)
+        end
+        local line, color = campLine(snap, w.comp, w.step, stepResult(snap, w.step.id), true)
+        if line ~= "" then T.Text(body, line, color, "small") end
+    end
+    body:AddSpacing()
+    T.Text(body, "Scenes that already played, can no longer happen or belong to a later act are not listed.",
+        T.C.faint, "small")
+end
+
 --- Shows the rules / notes the spoiler setting allows and counts the hidden ones.
 local function refreshNotes(group, act, spoilers)
     if not group then return end
@@ -1037,6 +1316,48 @@ local function refreshNotes(group, act, spoilers)
             hidden == 1 and "is" or "are"))
     end
     T.Show(group.hidden, hidden > 0)
+end
+
+--- "Recent approval changes" under the approval bar, newest first. Rebuilt only when
+--- the entries change.
+function refreshApprovalLog(page, snap, c)
+    if not page.alog then return end
+    local comp = page.comp
+    local log = snap and snap.ready and snap.alog or nil
+    local list = log and log.c and log.c[comp.id] or nil
+    local show = list ~= nil and #list > 0 and not (c and c.you)
+    T.Show(page.alog, show)
+    if not show then return end
+    local okKey, key = pcall(Ext.Json.Stringify, { list, log.rests or 0 })
+    key = okKey and key or tostring(CR.Now())
+    if key == page.alogKey then return end
+    page.alogKey = key
+    local body = page.alogBody
+    pcall(function() body:RemoveAllChildren() end)
+    local tbl = body:AddTable("##crApprovalLogTable", 2)
+    tbl:AddColumn("Change", "WidthFixed", 70)
+    tbl:AddColumn("When", "WidthStretch")
+    for i = #list, 1, -1 do
+        local e = list[i]
+        local row = tbl:AddRow()
+        local d = tonumber(e.d)
+        local color = (d and d > 0) and T.C.good or ((d and d < 0) and T.C.bad or T.C.dim)
+        T.Text(row:AddCell(), d and string.format("%+d", d) or "-", color, "small")
+        local who
+        if e.c then
+            local other = Guides.ById[e.c]
+            who = "talking with " .. (other and other.name or tostring(e.c))
+        elseif e.h then
+            local name = e.h ~= "" and Guides.Loca(e.h) or nil
+            who = name and ("talking with " .. name) or "in a conversation"
+        else
+            who = "outside a conversation"
+        end
+        local ago = (tonumber(log.rests) or 0) - (tonumber(e.r) or 0)
+        local when = (ago <= 0 and "since your last long rest") or (ago == 1 and "1 long rest ago")
+            or string.format("%d long rests ago", ago)
+        T.Text(row:AddCell(), who .. T.SEP_SHORT .. when .. T.SEP_SHORT .. "now " .. tostring(e.v), T.C.dim, "small")
+    end
 end
 
 local function refreshPage(snap)
@@ -1128,6 +1449,14 @@ local function refreshPage(snap)
     refreshNotes(page.common, act, spoilers)
     refreshNotes(page.notes, act, spoilers)
 
+    -- Not interested in this romance (the checkbox follows changes made in Options)
+    local declined = declinedRomance(snap, comp)
+    if page.noRomance then
+        pcall(function() if page.noRomance.Checked ~= declined then page.noRomance.Checked = declined end end)
+    end
+
+    refreshApprovalLog(page, snap, c)
+
     -- acts and steps
     local showTracking = Set.Get("showTracking")
     local currentKey = ready and actKey(snap.act) or 1
@@ -1138,11 +1467,13 @@ local function refreshPage(snap)
             local st, ev, remembered = stepResult(snap, step.id)
             local info = T.Status[st] or T.Status["?"]
             local shown = (st == S.AVAILABLE and step.optional) and T.Status.OPT or info
+            if st == S.AVAILABLE and declined and Guides.IsRomanceStep(step) then shown = T.Status.NO end
             T.Update(s.status, shown.label, shown.color)
             local band = ACT_NOW[st] and T.NextRowBg or T.Clear
             T.SetColor(s.row, band, "TableRowBg")
             T.SetColor(s.row, band, "TableRowBgAlt")
-            T.Update(s.tip, (shown == T.Status.OPT and T.StatusHelp.OPT) or T.StatusHelp[st] or "Waiting for game data.")
+            T.Update(s.tip, (shown == T.Status.OPT and T.StatusHelp.OPT) or (shown == T.Status.NO and T.StatusHelp.NO)
+                or T.StatusHelp[st] or "Waiting for game data.")
             T.SetColor(s.tree, info.title)
 
             if st ~= S.NA then
@@ -1168,11 +1499,28 @@ local function refreshPage(snap)
                 T.Show(s.req, false)
             end
 
+            -- Tonight at camp, for a step a camp scene completes
+            local campText, campColor = "", T.C.dim
+            if ready then campText, campColor = campLine(snap, comp, step, st) end
+            T.Update(s.camp, campText, campColor)
+            T.Show(s.camp, campText ~= "")
+
+            -- the item the step needs: does the party have it (inventories and camp chest)?
+            local has = step.item and c and c.items and c.items[step.id]
+            if has ~= nil and has ~= false and OPEN_LIKE[st] then
+                local text = has == 1 and ("You have " .. step.item.label .. ".")
+                    or ("You do not have " .. step.item.label .. " yet.")
+                T.Update(s.item, text, has == 1 and T.C.good or T.C.dim)
+                T.Show(s.item, true)
+            else
+                T.Show(s.item, false)
+            end
+
             local hideDetails = spoilers == "titles" and st == S.UPCOMING
             T.Show(s.details, not hideDetails)
             T.Show(s.meta, s.hasMeta and not hideDetails)
             T.Show(s.tracking, showTracking and true or false)
-            local evidence = describeEvidence(comp, c, step, st, ev, remembered)
+            local evidence = describeEvidence(comp, c, step, st, ev, remembered, declined)
             T.Update(s.state, evidence, evidenceColor(st))
             T.Show(s.state, evidence ~= "")
 
@@ -1193,10 +1541,20 @@ local function refreshPage(snap)
     end
 end
 
+--- Options: the "Romances you do not want" checkboxes follow the save.
+local function refreshOptions(snap)
+    for id, cb in pairs(UI.h.noRomance or {}) do
+        local on = declinedRomance(snap, Guides.ById[id])
+        pcall(function() if cb.Checked ~= on then cb.Checked = on end end)
+    end
+end
+
 function UI.Refresh(snap)
     if not UI.win then return end
     snap = snap or CR.Client.Snapshot
     CR.Guard("refresh warnings", refreshWarnings, snap)
+    CR.Guard("refresh camp", refreshCamp, snap)
+    CR.Guard("refresh options", refreshOptions, snap)
     CR.Guard("refresh header", refreshHeader, snap)
     CR.Guard("refresh sidebar", refreshSidebar, snap)
     CR.Guard("refresh page", refreshPage, snap)

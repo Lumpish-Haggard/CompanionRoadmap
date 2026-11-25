@@ -19,7 +19,9 @@ Report files from real saves, replayed by `tools/test_harness.py` as regression 
    not asserted yet), is a note for people and is ignored by the test.
 
 Every fixture is replayed on each test run: the fake game world is rebuilt from the report, the mod is started on it,
-and the run must be free of errors. The statuses recorded in the file come from the mod version that wrote it, so
+and the run must be free of errors. Reports written by 1.2 or later also carry the camp-scene scheduler's tables
+(`scheduler`) and the prediction made from them (`tonight`); the replay rebuilds those tables too, so "Tonight at
+camp" can be compared. Older reports only list the scenes still pending (`camp`), which the replay ignores. The statuses recorded in the file come from the mod version that wrote it, so
 they are not compared automatically; only the `expect` entries are.
 
 A report holds game identifiers only (flag ids, journal step names, companion ids, approval values). It contains no

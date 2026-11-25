@@ -83,6 +83,12 @@ Where this stands in 1.1 (see the [changelog](../CHANGELOG.md)):
 - **Non-lethal reminder** before the Minthara and Minsc fights (needs research).
 - **Not interested** (requested on Nexus). Mark a companion's romance as unwanted for this playthrough, on their page or in the options. Their romance steps then only remind you when an advance is coming, so you know which conversation to turn it down in, and their romance warnings and notifications stop. Saved per savegame, like check-offs. The mod stays read-only: it cannot block a romance in the game, only help you avoid it.
 
+Where this stands in 1.2 (see the [changelog](../CHANGELOG.md)):
+
+- **Done:** tonight at camp, read from the game's own scheduler; a heads-up at the game's "are you sure?" before the Shadowfell, the Colony (from Moonrise's roof), Baldur's Gate, the Lower City and the Morphic Pool; the approval log; the reminder to knock out Minthara and Minsc; not interested, with the moment a romance can begin shown as `SAY NO`; whether you have the item, for eight items across Shadowheart, Karlach, Lae'zel and Gale.
+- **Not quite as planned:** item awareness says whether you have an item, not how many ("Infernal Iron 1 of 2"): the game keeps one marker per kind of item, not a count. The approval log names the character you were talking to, not the conversation, which only has an internal name. The event log records approval changes and long rests, because the approval log needs them; conversations, dice results and deaths are not recorded, since nothing needs them yet. The other way into the Colony, through the prison below Moonrise, asks no "are you sure?", so there is nothing to show a heads-up at.
+- **Still open:** the conversation index (from 1.1). Everything in 1.2 still has to be seen in a real game; reports are welcome, and `!roadmap camp` compares the prediction with what then plays.
+
 ## 1.3: look
 
 - **Overview page**: one row per companion with state, approval, romance, next step and open warnings.
@@ -114,7 +120,8 @@ Where this stands in 1.1 (see the [changelog](../CHANGELOG.md)):
 Verified against the Patch 8 story scripts, for anyone picking up the items above:
 
 - Camp scenes: `DB_CampNight(flag, priority)` with `DB_CampNight_Requirement*`, `_Camp`, `_CancelledBy`, `_ExpiresAfter`, `_Completed` (goal `GLO_CampNights`).
-- Point-of-no-return prompts are ready checks, for example `ReadyCheck_EnterNightsongPrison`, `ReadyCheck_ToBGFromSCL`, `TWN_Finale_ReadyCheck`.
+- Point-of-no-return prompts are ready checks, for example `ReadyCheck_EnterNightsongPrison`, `ReadyCheck_ToBGFromSCL`, `END_ReadyCheck_MorphicPool`. They are opened with the built-in `ReadyCheckGlobal`, which the Script Extender cannot listen to, so 1.2 listens to the database rows the story writes as it opens them: `DB_SHA_NightsongPrison_StartedReadyCheck`, `DB_MOO_Roof_ColonyTeleporterActivator`, `DB_GLO_LevelSwap_ReadyCheck` (every region change; the id says where) and `DB_END_ToMorphicPool_BoatUser`. `ReadyCheckPassed(id)` and `ReadyCheckFailed(id)` close them.
+- The story keeps "has item" markers on every player who can reach an item: `DB_HasItemEvent(item, flag)` for unique items and `DB_PlayerHasTemplateItem(template, flag)` for item templates (`_GLOBAL_ItemEvents`).
 - A companion leaving for good goes through `PROC_Origins_CompanionLeavePermanently(companion, reason)`.
 - `Ext.Osiris.RegisterListener` can capture events, databases and user-defined PROCs and QRYs, but not built-in calls.
 - Conversations ship as JSON with per-node `setflags` / `checkflags` (scope Global, Object or Dialog) and approval reactions.

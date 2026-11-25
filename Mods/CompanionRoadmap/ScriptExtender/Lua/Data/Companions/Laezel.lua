@@ -196,6 +196,8 @@ CR.Guides.Register {
             avoid = { "Raphael's contract costs you the Crown of Karsus at the end - stealing the hammer avoids that deal." },
             rewards = "The only way to free Prince Orpheus.",
             done = { Q(ORPH, "StoleOrphicHammer"), Q(ORPH, "StoleOrphicHammer_RaphaelDefeated"), Q(ORPH, "DefeatedRaphael"), Q(ORPH, "MadeDeal"), Q(ORPH, "RaphaelReturnedHammer") },
+            -- DB_HasItemEvent(S_GLO_OrphicHammer) in GLO_Monitor_PostEA
+            item = { label = "the Orphic Hammer", has = P("GLO_Monitor_State_HasOrphicHammer") },
             closes = "endgame",
         },
         {

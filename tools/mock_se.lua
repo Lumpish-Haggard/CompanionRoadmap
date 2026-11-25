@@ -480,12 +480,16 @@ local function newEvent(name)
     return ev
 end
 
+-- Arities as the story goals use them (checked in tools/.cache/goals, Patch 8).
 local OSIRIS_EVENTS = {
     FlagSet = 3, FlagCleared = 3, QuestUpdateUnlocked = 3, ApprovalRatingChanged = 3,
     Died = 1, Resurrected = 1, CharacterJoinedParty = 1, CharacterLeftParty = 1, LevelGameplayStarted = 2,
-    DialogEnded = 2,
+    DialogEnded = 2, LongRestFinished = 0, ReadyCheckPassed = 1, ReadyCheckFailed = 1, EnteredCombat = 2,
     -- user-defined story procedures can be listened to as well (not built-in calls)
     PROC_Origins_CompanionLeavePermanently = 2,
+    -- story databases: "after" fires when a row is inserted
+    DB_SHA_NightsongPrison_StartedReadyCheck = 1, DB_MOO_Roof_ColonyTeleporterActivator = 2,
+    DB_GLO_LevelSwap_ReadyCheck = 2, DB_END_ToMorphicPool_BoatUser = 1,
 }
 Mock.OsirisListeners = {}
 Mock.ConsoleCommands = {}

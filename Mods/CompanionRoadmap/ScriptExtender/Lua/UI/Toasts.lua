@@ -97,7 +97,8 @@ local function render()
     local vw, vh = T.Viewport()
     local pos, pivot = Toasts.Placement(vw, vh)
     pcall(function() win:SetPos(pos, "Always", pivot) end)
-    win.Open = n > 0
+    -- a heads-up (UI/Alerts.lua) uses the same place: notices wait until it is gone
+    win.Open = n > 0 and not (CR.Alerts and CR.Alerts.IsShowing())
 end
 
 --- Moves notices that are on screen right now (after the position setting changed).

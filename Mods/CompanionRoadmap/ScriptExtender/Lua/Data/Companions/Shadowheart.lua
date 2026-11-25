@@ -10,6 +10,11 @@ local SH = "ORI_COM_ShadowHeart"
 local SHAR = "ORI_COM_ShadowHeart_SUB_Justiciar"
 local FRIEND = "ORI_COM_ShadowHeart_SUB_OldFriend"
 
+-- The story keeps a flag on every player who can reach the item (party, camp chest):
+-- DB_PlayerHasTemplateItem(SHA_SharSpear) in Act2_SHA_NightsongPrison, the check made
+-- before the Shadowfell
+local SPEAR = { label = "the Spear of Night", has = P("SHA_NightsongPrison_State_HasSpear") }
+
 CR.Guides.Register {
     id = "Shadowheart",
     name = "Shadowheart",
@@ -150,6 +155,8 @@ CR.Guides.Register {
             avoid = { "Giving it to Derryth or another companion instead - there is only one." },
             rewards = "She remembers a childhood friend; starts 'A Familiar Face' in Act 3 and grants a Nightsong point.",
             done = { Q(SH, "NobleStalk"), G("ORI_Shadowheart_State_NightsongPoint_AteNoblestalk") },
+            -- DB_HasItemEvent(S_UND_MushroomHunter_Noblestalk) in Act1_UND_MushroomHunter
+            item = { label = "the Noblestalk", has = P("UND_MushroomHunter_State_HasMushroom") },
             closes = "act1",
         },
         {
@@ -159,6 +166,8 @@ CR.Guides.Register {
             todo = { "Find the Idol of Shar in Grymforge and gift it to her." },
             rewards = "Approval and special dialogue; hints at the Dark Justiciar lair.",
             done = { Q(SHAR, "JusticiarHint_SharIdol_Update") },
+            -- DB_HasItemEvent(S_UND_IdolOfShar) in Act1_OriginMoments_Shadowheart_PostEA
+            item = { label = "the Idol of Shar", has = P("UND_IdolOfShar_State_HasIdol") },
             closes = "act1",
         },
         {
@@ -204,6 +213,8 @@ CR.Guides.Register {
             todo = { "Pick the Night Orchid and give it to her from the inventory or in conversation." },
             rewards = "Approval, a sweet scene and a Nightsong point.",
             done = { Q(SH, "GaveNightOrchid"), C.F("ORI_Shadowheart_State_AvatarGaveNightOrchid", "any"), C.F("ORI_Shadowheart_State_HasReceivedNightOrchid", "any"), G("ORI_Shadowheart_State_NightsongPoint_GaveNightOrchid") },
+            -- DB_PlayerHasTemplateItem(QUEST_SCL_NightOrchid) in Act2_OriginMoments_Shadowheart
+            item = { label = "a Night Orchid", has = P("ORI_Shadowheart_State_HasNightOrchid") },
             closes = "act3",
         },
         {
@@ -228,6 +239,7 @@ CR.Guides.Register {
             avoid = { "Entering the Shadowfell without the spear - she leaves the party." },
             rewards = "The weapon Shar expects her to use on Nightsong.",
             done = { Q(SHAR, "LootedSpearOfNight_Communion"), Q(SHAR, "LootedSpearOfNight_WaterCommunion") },
+            item = SPEAR,
             closes = "act3",
         },
         {
@@ -247,6 +259,7 @@ CR.Guides.Register {
             rewards = "Selune: Moonlight Glaive and Selune's Spear of Night (after Ketheric falls). Shar: Dark Justiciar Boots, Gauntlets, Half-Plate and Shar's Spear of Evening.",
             done = { Q(SHAR, "Nightsong_Spared"), Q(SHAR, "Nightsong_Killed"), Q(SH, "SparedNightsong"), Q(SH, "KilledNightsong") },
             fail = { Q(SHAR, "Nightsong_Surrendered"), Q(SHAR, "ShadowheartLeftOut"), Q(SH, "SharTemple_NoDecisionAllowed") },
+            item = SPEAR,
             after = { "SH_A2_SPEAR" },
             closes = "act3",
         },

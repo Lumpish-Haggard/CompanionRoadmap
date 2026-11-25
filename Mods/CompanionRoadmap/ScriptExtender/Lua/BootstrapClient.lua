@@ -11,6 +11,7 @@ Ext.Require("Client/Settings.lua")
 Ext.Require("Client/StateClient.lua")
 Ext.Require("UI/Theme.lua")
 Ext.Require("UI/Toasts.lua")
+Ext.Require("UI/Alerts.lua")
 Ext.Require("UI/OverlayWindow.lua")
 Ext.Require("Client/Hotkey.lua")
 

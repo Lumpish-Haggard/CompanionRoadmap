@@ -33,6 +33,11 @@ function Client.SetOverride(stepId, value)
     return send(CR.Net.Override, { id = stepId, value = value and true or false })
 end
 
+--- "Not interested" in a companion's romance (stored per player in the save).
+function Client.SetDeclined(compId, value)
+    return send(CR.Net.Romance, { id = compId, value = value and true or false })
+end
+
 --- Asks the server to write the report file; `onDone(ok, text)` gets the outcome.
 function Client.RequestReport(onDone)
     Client.reportDone = onDone
@@ -70,11 +75,17 @@ local function onToast(msg)
     if CR.Toasts then CR.Toasts.Push(msg.items) end
 end
 
+local function onAlert(msg)
+    if type(msg) ~= "table" then return end
+    if CR.Alerts then CR.Alerts.Handle(msg) end
+end
+
 function Client.Init()
     if not CR.Net.Ready then return end
     CR.Net.State:SetHandler(function(msg) CR.Guard("State", onState, msg) end)
     CR.Net.Toast:SetHandler(function(msg) CR.Guard("Toast", onToast, msg) end)
     CR.Net.Report:SetHandler(function(msg) CR.Guard("Report", onReport, msg) end)
+    CR.Net.Alert:SetHandler(function(msg) CR.Guard("Alert", onAlert, msg) end)
 
     -- Announce ourselves once the game is running so the server can send toasts
     -- even before the overlay has been opened.

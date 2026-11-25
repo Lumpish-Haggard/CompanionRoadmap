@@ -141,6 +141,8 @@ CR.Guides.Register {
             where = "Sorcerous Sundries, Lower City - the secure vaults",
             todo = { "Ask Tolna about the book, get into the vaults and recover The Annals of Karsus. Let Gale read it." },
             done = { Q(GA, "FoundBook"), Q(GA, "ReadNotes") },
+            -- DB_HasItemEvent(S_LOW_KarsusNotes) in Act3b_LOW_SorcerousSundries
+            item = { label = "the Annals of Karsus", has = P("LOW_SorcerousSundries_Event_HasKarsusBook") },
             closes = "endgame",
         },
         {

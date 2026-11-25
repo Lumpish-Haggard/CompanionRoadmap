@@ -21,6 +21,13 @@ CR.Guides.Register {
 
     recruited = G("GLO_Origin_PartOfTheTeam_Minthara"),
     left = { Q(FATE, "MintharaPermaDefeated"), Q(FATE, "MintharaPacified") },
+    -- reminder when a fight with her starts while the good path is still open
+    -- (Act1_DEN_AttackOnDen_Combat hooks EnteredCombat(S_GOB_DrowCommander) the same way)
+    knockOut = {
+        step = "MIN_A1_KO",
+        text = "To recruit her later, knock her out instead of killing her: switch on Non-Lethal Attacks (Passives) "
+            .. "for everyone who may land the last hit, and finish her with a melee weapon or an unarmed strike.",
+    },
     romance = {
         dating = P("ORI_State_DatingMinthara"),
         partnered = P("ORI_State_PartneredWithMinthara"),
@@ -49,6 +56,7 @@ CR.Guides.Register {
         -- ------------------------------------------------------------------ Act 1
         {
             id = "MIN_A1_MEET", act = 1, kind = "story", optional = true,
+            campScene = false,   -- the raiders' celebration only proves you met her
             title = "Meet Minthara in the Shattered Sanctum",
             where = "Goblin Camp - Shattered Sanctum, war room upstairs",
             todo = {
@@ -87,6 +95,7 @@ CR.Guides.Register {
         },
         {
             id = "MIN_A1_RAID", act = 1, kind = "choice", critical = true, alt = "MIN_ROUTE",
+            campScene = false,   -- the celebration follows the raid; the raid is the step
             title = "Evil path: raid the Grove with her",
             where = "Shattered Sanctum, then the Emerald Grove",
             todo = {

@@ -8,6 +8,8 @@ Ext.Require("Data/Flags.lua")
 Ext.Require("Data/CompanionGuides.lua")
 Ext.Require("Tracker/Memory.lua")
 Ext.Require("Tracker/FlagEvaluator.lua")
+Ext.Require("Tracker/Camp.lua")
+Ext.Require("Tracker/ApprovalLog.lua")
 Ext.Require("Tracker/StateServer.lua")
 
 CR.RegisterVars()

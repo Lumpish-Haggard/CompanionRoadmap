@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows [Kee
 
 Nothing yet.
 
+## [1.2.0] - 2026-11-25
+
+"Camp and warnings": what plays at your next long rest, a heads-up at every point of no return, and a way to say no to a romance.
+
+### Added
+- **Tonight at camp.** A new tab shows which camp scenes the game would play if you took a long rest now, and, for each of this guide's camp scenes the game is still holding, what it needs: *Needs 40 approval with Shadowheart (you have 31); you to be Shadowheart's partner.* A scene whose time is running out says so (*Last chance: only at your next long rest*). The roadmap reads the game's own camp-scene scheduler and repeats its choice: the most important scene whose conditions are met, then any others that do not clash with it. The game makes its choice when you rest, so anything that changes before then can change it. The steps these scenes complete say the same on the companion's page. In the console, `!roadmap camp` lists the prediction with the game's own names.
+- **A warning at the game's "are you sure?".** When the game asks whether you are ready to enter Nightsong's prison, jump into the Mind Flayer Colony from Moonrise's roof, leave for Baldur's Gate, enter the Lower City or take the boat to the Morphic Pool, a heads-up lists what is still open before that point (the same list as *Before you move on*) and goes away with your answer. *Options > Notifications* can switch it off.
+- **Not interested** (requested on Nexus). Tick it on a companion's page, under *Romance path*, or in *Options > Romances you do not want*. Their romance steps then only show where the romance can begin, labelled `SAY NO`, so you know which conversation to turn it down in. The rest of their romance no longer counts, and its notices and warnings stop. Their own story is untouched. The choice is kept in your save, for each player. The roadmap cannot stop a romance in the game, only help you avoid it.
+- **Knock out, do not kill.** When a fight starts against Minthara or Minsc while you can still recruit them, a heads-up reminds you to switch on Non-Lethal Attacks and land the last hit with a melee weapon or an unarmed strike. It stays away when Minthara fights on your side. *Options > Notifications* can switch it off.
+- **Recent approval changes.** Under a companion's approval bar: the last ten changes, by how much, who you were talking to and how many long rests ago (*-5, talking with Karlach, 1 long rest ago, now 28*). Kept in your save; it starts with this version.
+- **Do you have the item?** A step that needs an item says whether your party has it, camp chest included: the Noblestalk, the Idol of Shar, a Night Orchid, the Spear of Night (also on the Nightsong step, because entering the Shadowfell without it sends Shadowheart away), Infernal Iron for Karlach's engine, the Orphic Hammer and the Annals of Karsus. The roadmap reads the markers the game itself keeps for these items.
+
+### Changed
+- Report files also carry the camp-scene scheduler's tables and the prediction made from them, the approval log and the romances marked as not wanted, so a report replays to the same "Tonight at camp".
+- `!roadmap forget` also clears the approval log.
+- The network protocol changed: in multiplayer, everyone needs this version.
+- For guide writers: `item` and `campScene` on steps, `knockOut` on companions (see [docs/DATA_FORMAT.md](docs/DATA_FORMAT.md)).
+
 ## [1.1.0] - 2026-11-17
 
 "Trust": the roadmap remembers what it has seen, and its data is now checked against the game's own camp-scene rules.
@@ -130,7 +148,8 @@ First public release. A full rebuild of an earlier prototype that could not run 
   - Wyll's romance only starts at the Tiefling party and needs Duke Ravengard alive; rescuing Mizora is what keeps Wyll himself alive.
   - Gale leaves only if you refuse the first magic item.
 
-[Unreleased]: ../../compare/v1.1.0...HEAD
+[Unreleased]: ../../compare/v1.2.0...HEAD
+[1.2.0]: ../../releases/tag/v1.2.0
 [1.1.0]: ../../releases/tag/v1.1.0
 [1.0.3]: ../../releases/tag/v1.0.3
 [1.0.2]: ../../releases/tag/v1.0.2

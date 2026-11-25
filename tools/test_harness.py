@@ -83,6 +83,8 @@ class World:
         self.dead = set()
         self.statuses = set()
         self.tags = set()           # (character guid, tag guid)
+        self.enemies = set()        # (character guid, character guid): IsEnemy
+        self.names = {}             # character guid -> GetDisplayName result
         self.host = AVATAR
         self.set_level("WLD_Main_A")
         self.dbs["DB_Avatars"] = [(AVATAR,)]
@@ -121,11 +123,18 @@ class World:
             return 65537
         if name == "GetCurrentCharacter":
             return self.host
+        if name == "IsEnemy":
+            return 1 if (guid(args[0]), guid(args[1])) in self.enemies else 0
+        if name == "GetDisplayName":
+            return self.names.get(guid(args[0]))
         raise RuntimeError(f"Osiris function {name} is not mocked")
 
     def db_get(self, name, args):
         out = []
         for row in self.dbs.get(name, []):
+            # Osiris databases are separate per arity (DB_X/2 is not DB_X/3)
+            if len(row) != len(args):
+                continue
             ok = True
             for i, a in enumerate(args):
                 if a is None:
@@ -329,7 +338,67 @@ def world_from_report(report):
             world.dbs["DB_ORI_Dating"].append((avatar, uuid))
         if comp.get("partnered"):
             world.dbs["DB_ORI_Partnered"].append((avatar, uuid))
+    # the camp-scene scheduler (1.2): its tables, and the requirement flags that were set
+    for name, rows in (report.get("scheduler") or {}).items():
+        if name == "flags":
+            for g in rows:
+                world.flags.add((g, NULL))
+            continue
+        if name == "playerFlags":
+            for entry in rows:
+                flag, target = entry.split("@", 1)
+                world.flags.add((flag, guid(target)))
+            continue
+        db = name.split("/")[0]          # "DB_CampNight_Requirement/3" -> DB_CampNight_Requirement
+        for row in rows:
+            world.dbs[db].append(tuple(row))
     return world
+
+
+CHAR = {   # story names of the companions, as camp tables hold them
+    "Shadowheart": "S_Player_ShadowHeart_" + UUID["Shadowheart"], "Karlach": "S_Player_Karlach_" + UUID["Karlach"],
+    "Laezel": "S_Player_Laezel_" + UUID["Laezel"], "Gale": "S_Player_Gale_" + UUID["Gale"],
+    "Halsin": "S_GLO_Halsin_" + UUID["Halsin"], "Wyll": "S_Player_Wyll_" + UUID["Wyll"],
+    "Astarion": "S_Player_Astarion_" + UUID["Astarion"],
+}
+NULL_FLAG = "NULL_" + NULL
+
+
+def add_scene(world, name, guid_, prio, camps, crd=(), req=(), approval=(), partner=(), dating=(), start=(),
+              romance=(), cfm=False, dream=False, expires=None, expiring=None, exclusive=False):
+    """Declares a camp scene the way the story goals do (DB_CampNight and friends, GLO_CampNights).
+    Flags are (name, guid) pairs; companions are keys of CHAR."""
+    flag = f"{name}_{guid_}"
+    dbs = world.dbs
+    dbs["DB_CampNight"].append((flag, prio))
+    for camp in camps:
+        dbs["DB_CampNight_Camp"].append((flag, camp))
+    for who in crd:
+        dbs["DB_CampNight_CRD"].append((flag, CHAR[who] if who else NULL_FLAG, f"CAMP_{name}_CRD", NULL_FLAG))
+    for flags in req:
+        dbs["DB_CampNight_Requirement"].append((flag, *[f"{n}_{g}" for n, g in flags]))
+    for who, minimum in approval:
+        dbs["DB_CampNight_Requirement_Approval"].append((flag, CHAR[who], minimum))
+    for who in partner:
+        dbs["DB_CampNight_Requirement_Partner"].append((flag, CHAR[who]))
+    for who in dating:
+        dbs["DB_CampNight_Requirement_Dating"].append((flag, CHAR[who]))
+    for who in start:
+        dbs["DB_CampNight_Requirement_CanStartDating"].append((flag, CHAR[who]))
+    for who, rflag in romance:
+        dbs["DB_CampNight_RomanceNight"].append((flag, CHAR[who], f"CAMP_{name}_SD_ROM",
+                                                 f"{rflag[0]}_{rflag[1]}" if rflag else NULL_FLAG))
+    if cfm:
+        dbs["DB_CampNight_CFM"].append((flag, f"CAMP_{name}_CFM"))
+    if dream:
+        dbs["DB_CampNight_AvatarDream"].append((flag, f"CAMP_{name}_AvD"))
+    if expires is not None:
+        dbs["DB_CampNight_ExpiresAfter"].append((flag, expires))
+    if expiring is not None:
+        dbs["DB_CampNight_StartedExpiring"].append((flag, expiring))
+    if exclusive:
+        dbs["DB_CampNight_ExclusiveMoment"].append((flag,))
+    return flag
 
 
 def replay_report(report):
@@ -353,15 +422,18 @@ def all_statuses(client):
     return dict(item.split("=") for item in str(text).split(";") if item)
 
 
-def make(world=None, memory=None):
+def make(world=None, memory=None, saved=None):
     """Boots server and client on a world. `memory` is what the save already holds in
-    the mod's "Memory" variable (the choice memory), as a report file exports it."""
+    the mod's "Memory" variable (the choice memory), as a report file exports it;
+    `saved` presets any other mod variables ({ name: value })."""
     world = world or World()
     sim = Sim(world)
     server = Runtime("server", True, sim)
     client = Runtime("client", False, sim)
     if memory:
         server.lua.globals().Ext.Vars.vars.Memory = server.to_lua(memory)
+    for name, value in (saved or {}).items():
+        server.lua.globals().Ext.Vars.vars[name] = server.to_lua(value)
     server.boot("BootstrapServer.lua")
     client.boot("BootstrapClient.lua")
     for rt in (server, client):
@@ -1450,6 +1522,492 @@ def test_ui_layout():
     check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
 
 
+# Camp scenes as the Patch 8 story declares them (Act3_OriginMoments_*, Act3b_ORI_Halsin,
+# Act3_ORI_Gale, GLO_Origin_Laezel_PostEA, Act1_DaisyDreams); GUIDs from the game's flag table.
+N_KARLACH_DATE = ("NIGHT_Karlach_ANightAtTheTown", "8d07ffbd-868d-468b-9ac0-84f2d8adaeaa")
+N_SWIM = ("NIGHT_Shadowheart_Skinnydipping", "9f583304-0a1a-498c-acf9-3c8dcc30ee3d")
+N_HALSIN = ("NIGHT_Halsin_Romance_Execution", "a9634ef4-27ec-4a75-be9d-7c738d9768ed")
+N_GALE_GOD = ("NIGHT_Gale_BeMyGod", "2259ec28-b538-4895-a431-30dc7e2ddf66")
+N_DAISY = ("NIGHT_DaisyMissionStatement", "287c7434-5031-46f2-9b7b-4999a2349081")
+N_VLAAKITH = ("NIGHT_Laezel_VlaakithVisit", "254a4c0b-9fd2-4b41-97e9-5f60e338e062")
+N_KARLACH_GORTASH = ("NIGHT_Karlach_AfterDefeatingGortash", "b8e239e4-e73e-433e-9550-e4a56bdbffd1")
+F_BARTENDER = ("CAMP_Karlach_State_AnyBartenderAvailable", "63cdf812-c71e-4acb-b161-5893c912a0c2")
+F_SHAR_ENEMY = ("ORI_Shadowheart_State_EnemyOfSharPath", "055bbe0f-05f5-444b-a7e2-0f66edd2178c")
+F_KNOWS_SWIM = ("ORI_Shadowheart_Knows_PersonalInfo", "abbc836e-07f0-4951-bb7b-beac52d91b2a")
+F_SWIM_SCENE = ("ORI_Shadowheart_Event_SkinnyDippingRomanceScene", "3437a073-b92a-4999-b6b9-e7745865a0c2")
+F_HALSIN_REQ = ("CAMP_Halsin_SexRequirement", "67e75062-a7a1-0f42-80f3-1cc02ba36fa1")
+F_HALSIN_WAIT = ("CAMP_Halsin_State_WaitForKarlachUpgraded", "9e2e8aaa-dcb6-3541-8e51-dd23cdac16b0")
+F_KARLACH_UP2 = ("GLO_ForgingOfTheHeart_State_KarlachSecondUpgrade", "f6dc0de4-1089-43c0-b392-306a9a44387c")
+F_KARSUS_NOTES = ("ORI_Gale_Knows_ReadKarsusNotes", "2b0e541f-f49e-7e82-27d6-15fccd6ff1ff")
+F_GALE_COMPANION = ("GALECOMPANION", "53fe9349-fc4e-433f-8701-e0aabb414906")
+F_LAEZEL_COMPANION = ("LAEZELCOMPANION", "9c5bc0ce-cb2e-4685-b597-89a290837535")
+F_LAEZEL_CAMP = ("LAEZELCAMP", "3a157c66-db4a-48ad-95e5-9659c42c4aa0")
+F_LAEZEL_AVATAR = ("LAEZELAVATAR", "cea30880-6e09-4daa-ad17-5411885097f3")
+F_SEND_KARLACH = ("WYR_GortashConfrontation_Event_SendKarlachToCamp", "7a52ef44-835d-4af9-0388-cdd1036a09ed")
+ACT1_CAMPS = ("WLDMAIN", "WLDCAVGRN", "WLDCAVSND", "WLDDUNABB", "WLDDUNSHA", "WLDUND", "WLDBAS", "CREMAIN", "CREINSIDE")
+
+
+def set_global(world, flag):
+    """Sets a global flag given as (name, guid), for flags the guide itself does not use."""
+    world.flags.add((flag[1], NULL))
+
+
+def camp_of(client):
+    return json.loads(str(client.eval("return Ext.Json.Stringify(CR.Client.Snapshot.camp or {})")))
+
+
+def act3_camp_world():
+    """An Act 3 save at the Elfsong Tavern camp, partnered with Karlach, with the guide's camp scenes declared."""
+    world = World()
+    for name in ("Shadowheart", "Karlach", "Gale", "Halsin", "Laezel"):
+        world.set_flag("GLO_Origin_PartOfTheTeam_" + name)
+        world.dbs["DB_PartOfTheTeam"].append((CHAR[name],))
+    for f in ("VISITEDREGION_WLD_Main_A", "VISITEDREGION_SCL_Main_A", "VISITEDREGION_BGO_Main_A", "VISITEDREGION_CTY_Main_A"):
+        world.set_flag(f)
+    world.set_level("CTY_Main_A")
+    world.dbs["DB_Camp_Unlocked"] = [(1,)]
+    world.dbs["DB_ActiveCamp"] = [("ELFSONG",)]
+    world.dbs["DB_ORI_Partnered"] = [(AVATAR, CHAR["Karlach"])]
+    world.set_flag("ORI_State_PartneredWithKarlach", AVATAR)
+    world.approval[UUID["Karlach"]] = 30          # exactly the date's value: the scheduler asks for at least
+    world.approval[UUID["Shadowheart"]] = 31
+    set_global(world, F_BARTENDER)
+    set_global(world, F_SHAR_ENEMY)
+    lower_city = ("SLUMS", "ELFSONG")
+    act3 = ("FARM", "SLUMS", "ELFSONG")
+    add_scene(world, *N_KARLACH_DATE, 4170, lower_city, crd=["Karlach"], req=[[F_BARTENDER]],
+              approval=[("Karlach", 30)], partner=["Karlach"])
+    add_scene(world, *N_SWIM, 4110, act3, crd=["Shadowheart"], req=[[F_SHAR_ENEMY, F_KNOWS_SWIM]],
+              approval=[("Shadowheart", 40)], partner=["Shadowheart"], romance=[("Shadowheart", F_SWIM_SCENE)])
+    add_scene(world, *N_HALSIN, 4240, act3, req=[[F_HALSIN_REQ], [F_HALSIN_WAIT, F_KARLACH_UP2]],
+              partner=["Halsin"], romance=[("Halsin", None)], expires=2)
+    add_scene(world, *N_GALE_GOD, 4180, act3, crd=["Gale"], req=[[F_KARSUS_NOTES, F_GALE_COMPANION]], partner=["Gale"])
+    add_scene(world, *N_DAISY, 7090, ACT1_CAMPS, dream=True)
+    return world
+
+
+def test_tonight_at_camp():
+    """'Tonight at camp' repeats the game's own camp-scene selection (GLO_CampNights): the
+    most important scene whose requirements hold, then any that do not clash with it."""
+    world, sim, server, client = make(act3_camp_world())
+    # earlier steps the scenes wait for in the guide, checked off by hand; the wolf talk
+    # too, although the game never recorded what the swim needs from it
+    for sid in ("HAL_A2_CURSE", "GALE_A2_STARS", "GALE_A3_KARSUS", "SH_A1_WOLF", "SH_A2_PARTNER"):
+        server.eval(f'CR.Server.SetOverride("{sid}", true)')
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+
+    def refresh():
+        server.eval("CR.Server.MarkDirty()")
+        sim.run(max_ms=1000)
+
+    camp = camp_of(client)
+    check(camp.get("ok") is True and camp.get("at") == "ELFSONG", f"the prediction runs at the active camp: {camp}")
+    tonight = [t.get("s") for t in camp["tonight"]]
+    check(tonight == ["KAR_A3_DATE"], f"only Karlach's date meets its requirements tonight: {tonight}")
+    steps = camp["steps"]
+    check(steps["KAR_A3_DATE"].get("t") == 1, "the date is marked as tonight")
+    swim = steps["SH_A3_SWIM"]["b"]
+    check(["a", "Shadowheart", 40, 31] in swim, f"the swim needs 40 approval, you have 31: {swim}")
+    check(["p", "Shadowheart"] in swim, f"... and her partner: {swim}")
+    check(["f", 1, "SH_A1_WOLF"] in swim, f"... and the wolf talk (she cannot swim), named as a step: {swim}")
+    halsin = steps["HAL_A3_ROMANCE"]["b"]
+    check(["p", "Halsin"] in halsin and any(b[0] == "f" for b in halsin), f"Halsin's night: partner and story: {halsin}")
+    check("x" not in steps["HAL_A3_ROMANCE"], "its two-night window has not started: requirements are not met")
+    check(not any(t.get("d") for t in camp["tonight"]), "an Act 1 dream does not play at an Act 3 camp")
+
+    # Lae'zel's Vlaakith visit (a campfire moment) is more important and plays alongside the date
+    add_scene(world, *N_VLAAKITH, 5080, ("FARM", "SLUMS", "ELFSONG"), cfm=True,
+              req=[[F_LAEZEL_COMPANION], [F_LAEZEL_CAMP], [F_LAEZEL_AVATAR]])
+    world.dbs["DB_CampNight"].insert(0, world.dbs["DB_CampNight"].pop())   # the game's table has no order
+    set_global(world, F_LAEZEL_COMPANION)
+    refresh()
+    tonight = [t.get("s") for t in camp_of(client)["tonight"]]
+    check(tonight == ["LAE_A3_VLAAKITH", "KAR_A3_DATE"], f"two scenes that do not clash both play, most important first: {tonight}")
+
+    # a more important conversation with Karlach takes her evening: the date waits for another night
+    add_scene(world, *N_KARLACH_GORTASH, 5500, ("FARM", "SLUMS", "ELFSONG"), crd=["Karlach"], req=[[F_SEND_KARLACH]])
+    set_global(world, F_SEND_KARLACH)
+    refresh()
+    camp = camp_of(client)
+    tonight = [t.get("s") or t.get("c") for t in camp["tonight"]]
+    check(tonight == ["Karlach", "LAE_A3_VLAAKITH"], f"Karlach can only have one conversation a night: {tonight}")
+    check(camp["steps"]["KAR_A3_DATE"]["b"] == [["q"]], f"the date is ready but waits: {camp['steps']['KAR_A3_DATE']}")
+
+    # the tab says it in words, and each scene links to its step
+    client.eval('CR.UI.Select("Karlach")')
+    sim.run()
+    tab = visible_labels(client, "CR.UI.h.campBody")
+    check("If you rest now" in tab and "A scene with Karlach" in tab and "Vlaakith's visit" in tab,
+          f"tonight's scenes in words: {tab!r}")
+    check("Ready, but a more important scene comes first" in tab, f"why the date waits: {tab!r}")
+    check('Needs 40 approval with Shadowheart (you have 31); you to be Shadowheart\'s partner; '
+          '"The wolf memory - learn that she cannot swim" first.' in tab, f"what the swim needs, in words: {tab!r}")
+    line = str(client.eval("return CR.UI.page.steps.KAR_A3_DATE.camp.Label"))
+    check(line.startswith("Camp scene: Ready, but") and client.eval("return CR.UI.page.steps.KAR_A3_DATE.camp.Visible"),
+          f"the step itself says it: {line}")
+    link = client.eval("""
+        for _, c in ipairs(rawget(CR.UI.h.campBody, "__children")) do
+            if rawget(c, "__type") == "Selectable" and string.find(c.Label, "###tw_SH_A3_SWIM", 1, true) then
+                c.OnClick(c) return c.Label
+            end
+        end
+    """)
+    check(link is not None and client.eval("return CR.UI.selected") == "Shadowheart", "a waiting scene opens its step")
+    sim.run()
+
+    # a report replays to the same prediction (the scheduler's tables travel with it)
+    server.mock.ConsoleCommands["roadmap"]("roadmap", "report")
+    report = json.loads(str(server.mock.Files["CompanionRoadmap/report.json"]))
+    check(report.get("scheduler") and report.get("tonight"), "the report carries the scheduler and the prediction")
+    _, _, server2, client2 = replay_report(report)
+    replayed = camp_of(client2)
+    check([t.get("g") for t in replayed["tonight"]] == [t.get("g") for t in report["tonight"]["tonight"]],
+          f"replayed prediction: {replayed['tonight']} vs {report['tonight']['tonight']}")
+    check(not server2.errors() and not client2.errors(), f"replay errors: {server2.errors()} {client2.errors()}")
+
+    # Halsin's night: a two-night window that started and is nearly over
+    world.dbs["DB_CampNight_StartedExpiring"] = [(f"{N_HALSIN[0]}_{N_HALSIN[1]}", 2)]
+    refresh()
+    check(camp_of(client)["steps"]["HAL_A3_ROMANCE"].get("x") == 1, "one long rest left")
+    world.dbs["DB_CampNight_StartedExpiring"] = [(f"{N_HALSIN[0]}_{N_HALSIN[1]}", 1)]
+    refresh()
+    halsin = camp_of(client)["steps"]["HAL_A3_ROMANCE"]
+    check(halsin.get("b") == [["x"]] and halsin.get("x") == 0, f"dropped at the next rest: {halsin}")
+
+    # a romance night needs the companion at camp; a scene the game already played is gone from its tables
+    world.dbs["DB_PartOfTheTeam"].remove((CHAR["Karlach"],))
+    refresh()
+    camp = camp_of(client)
+    check(["t", "Karlach"] in camp["steps"]["KAR_A3_DATE"]["b"], f"Karlach is not at camp: {camp['steps']['KAR_A3_DATE']}")
+    world.dbs["DB_CampNight"] = [r for r in world.dbs["DB_CampNight"] if not r[0].startswith(N_SWIM[0])]
+    refresh()
+    check("SH_A3_SWIM" not in camp_of(client)["steps"], "a scene that played or was cancelled is no longer listed")
+
+    # no camp, no prediction
+    world.dbs["DB_Camp_Unlocked"] = []
+    refresh()
+    camp = camp_of(client)
+    check(camp.get("ok") is False and camp.get("why") == "locked", f"camp locked: {camp}")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+
+
+def test_not_interested():
+    """A romance marked as not wanted (requested on Nexus): only the moment it can begin stays
+    open, as SAY NO; its notices and warnings stop; the choice is kept in the save, per player."""
+    world, sim, server, client = make()
+    for name in ("Shadowheart", "Karlach"):
+        world.set_flag("GLO_Origin_PartOfTheTeam_" + name)
+    world.set_flag("VISITEDREGION_WLD_Main_A")
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+    client.eval('CR.UI.Select("Shadowheart")')
+    sim.run()
+    check(step_status(client, "SH_A1_PARTY") in ("N", "A"), f"her romance can begin: {step_status(client, 'SH_A1_PARTY')}")
+    nightsong = step_status(client, "SH_A2_NIGHTSONG")
+    starts = [l for l in visible_labels(client, "CR.UI.h.warnBody").split("\n") if "Shadowheart" in l]
+    check(starts, "before: her romance is among those that can only begin before the Shadowfell")
+
+    # tick the box on her page
+    client.eval("local cb = CR.UI.page.noRomance cb.OnChange(cb, true)")
+    sim.run()
+    check(client.eval("return CR.Client.Snapshot.nr.Shadowheart") is True, "the snapshot says not wanted")
+    stored = json.loads(str(server.eval("return Ext.Json.Stringify(Ext.Vars.vars.NoRomance or {})")))
+    check(stored == {guid(AVATAR): {"Shadowheart": True}}, f"kept in the save, for this player: {stored}")
+    check(step_status(client, "SH_A1_PARTY") == "A", f"the moment it can begin stays open: {step_status(client, 'SH_A1_PARTY')}")
+    check(client.eval("return CR.UI.page.steps.SH_A1_PARTY.status.Label") == "SAY NO", "and reads SAY NO")
+    state = str(client.eval("return CR.UI.page.steps.SH_A1_PARTY.state.Label"))
+    check("turn Shadowheart down" in state, f"it says what to do: {state}")
+    check(step_status(client, "SH_A1_WOLF") == "X", f"other romance steps no longer apply: {step_status(client, 'SH_A1_WOLF')}")
+    check(step_status(client, "SH_A2_NIGHTSONG") == nightsong, "her story is untouched (Nightsong is a story step)")
+    nexts = [k for k, v in all_statuses(client).items() if v == "N" and k.startswith("SH_")]
+    check(len(nexts) == 1 and nexts[0] != "SH_A1_PARTY", f"the romance is never the next step: {nexts}")
+    starts = [l for l in visible_labels(client, "CR.UI.h.warnBody").split("\n") if "Shadowheart" in l]
+    check(not starts, f"no 'can only begin before this point' reminder for her: {starts}")
+    check(client.eval("return CR.UI.h.noRomance.Shadowheart.Checked") is True, "Options shows it too")
+
+    # the romance begins anyway (said yes after all): no notice about it
+    client.eval("CR.Toasts.queue = {}")
+    world.set_flag("ORI_State_DatingShadowheart", AVATAR)
+    server.mock.FireOsiris("FlagSet", "ORI_State_DatingShadowheart_" + FLAG["ORI_State_DatingShadowheart"], AVATAR, 0)
+    sim.run(max_ms=1000)
+    check(step_status(client, "SH_A1_PARTY") == "D", "what happened is still shown")
+    queued = str(client.eval("local t = {} for _, q in ipairs(CR.Toasts.queue) do t[#t + 1] = q.text end return table.concat(t, '|')"))
+    check("wine by the waterfall" not in queued, f"no notice for a romance you did not want: {queued}")
+
+    # untick it in Options: everything is back
+    client.eval("local cb = CR.UI.h.noRomance.Shadowheart cb.OnChange(cb, false)")
+    sim.run()
+    check(client.eval("return CR.Client.Snapshot.nr == nil") is True, "nothing marked any more")
+    check(client.eval("return CR.UI.page.noRomance.Checked") is False, "the page checkbox follows")
+    check(step_status(client, "SH_A1_WOLF") != "X", "her romance steps are back")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+
+
+def alert_open(client):
+    return client.eval("return CR.Alerts.win ~= nil and CR.Alerts.win.Open") is True
+
+
+def test_point_of_no_return_alerts():
+    """When the game asks 'are you sure?' before a point of no return, a heads-up lists what is
+    still open before it, and goes away with the answer."""
+    world, sim, server, client = make()
+    for f in ("GLO_Origin_PartOfTheTeam_Shadowheart", "GLO_Origin_PartOfTheTeam_Karlach",
+              "VISITEDREGION_WLD_Main_A", "VISITEDREGION_SCL_Main_A"):
+        world.set_flag(f)
+    world.set_flag("ORI_State_DatingShadowheart", AVATAR)
+    world.set_level("SCL_Main_A")
+    fire_running(client, sim)            # the window stays closed: the heads-up works without it
+
+    # stepping into Nightsong's prison (Act2_SHA_NightsongPrison writes this row with the prompt)
+    server.mock.FireOsiris("DB_SHA_NightsongPrison_StartedReadyCheck", AVATAR)
+    sim.run(max_ms=1000)
+    check(alert_open(client), "the heads-up appears with the game's prompt")
+    text = visible_labels(client, "CR.Alerts.win")
+    check("Before you go on: Act 1 locks for good when you enter the Shadowfell" in text, f"which point: {text!r}")
+    check("Shadowheart  ·  " in text and "Press F7 to review everything" in text, f"what is open, and how to see more: {text!r}")
+    client.eval("CR.Toasts.Preview()")
+    check(client.eval("return CR.Toasts.win.Open") is False, "notices wait while the heads-up is up")
+    server.mock.FireOsiris("ReadyCheckFailed", "ReadyCheck_EnterNightsongPrison")
+    sim.run(max_ms=1000)
+    check(not alert_open(client), "answering the prompt closes it")
+    check(client.eval("return CR.Toasts.win.Open") is True, "and the notice that waited shows")
+
+    # region changes only matter when they are points of no return
+    server.mock.FireOsiris("DB_GLO_LevelSwap_ReadyCheck", AVATAR, "WaypointTravel_RegionSwap")
+    sim.run(max_ms=1000)
+    check(not alert_open(client), "travelling by waypoint is not a point of no return")
+    server.mock.FireOsiris("DB_GLO_LevelSwap_ReadyCheck", AVATAR, "ReadyCheck_ToBGFromSCL")
+    sim.run(max_ms=1000)
+    check(alert_open(client) and "Leaving Act 2 for Baldur's Gate" in visible_labels(client, "CR.Alerts.win"),
+          "leaving for Baldur's Gate")
+    server.mock.FireOsiris("ReadyCheckPassed", "ReadyCheck_EnterNightsongPrison")   # another prompt's answer
+    sim.run(max_ms=1000)
+    check(alert_open(client), "only the answer to this prompt closes it")
+    server.mock.FireOsiris("ReadyCheckPassed", "ReadyCheck_ToBGFromSCL")
+    sim.run(max_ms=1000)
+    check(not alert_open(client), "passed: closed")
+
+    # the Colony from Moonrise's roof, and the Morphic Pool
+    server.mock.FireOsiris("DB_MOO_Roof_ColonyTeleporterActivator", AVATAR, "MOO_Assault_ReadyCheck")
+    sim.run(max_ms=1000)
+    check("Act 2 ends when you go down into the Mind Flayer Colony" in visible_labels(client, "CR.Alerts.win"), "the Colony")
+    server.mock.FireOsiris("ReadyCheckFailed", "MOO_Assault_ReadyCheck")
+    sim.run(max_ms=1000)
+    # Wyrm's Rock into the Lower City; once it was entered, that prompt is no longer a point of no return
+    world.set_level("BGO_Main_A")
+    world.set_flag("VISITEDREGION_BGO_Main_A")
+    server.mock.FireOsiris("DB_GLO_LevelSwap_ReadyCheck", AVATAR, "ReadyCheck_ToLOWFromWYR")
+    sim.run(max_ms=1000)
+    check("Entering the Lower City" in visible_labels(client, "CR.Alerts.win"), "the Lower City")
+    server.mock.FireOsiris("ReadyCheckPassed", "ReadyCheck_ToLOWFromWYR")
+    sim.run(max_ms=1000)
+    world.set_level("CTY_Main_A")
+    world.set_flag("VISITEDREGION_CTY_Main_A")
+    server.mock.FireOsiris("DB_GLO_LevelSwap_ReadyCheck", AVATAR, "ReadyCheck_ToLOWFromWYR")
+    sim.run(max_ms=1000)
+    check(not alert_open(client), "a point already passed brings no heads-up")
+    server.mock.FireOsiris("ReadyCheckPassed", "ReadyCheck_ToLOWFromWYR")
+    sim.run(max_ms=1000)
+    server.mock.FireOsiris("DB_END_ToMorphicPool_BoatUser", AVATAR)
+    sim.run(max_ms=1000)
+    check("The final assault on the Netherbrain" in visible_labels(client, "CR.Alerts.win"), "the Morphic Pool")
+    # a prompt whose answer never arrives does not stay forever
+    sim.run(max_ms=200000)
+    check(not alert_open(client), "the heads-up times out")
+
+    # switched off
+    client.eval('CR.Settings.Set("warnReadyChecks", false)')
+    server.mock.FireOsiris("DB_SHA_NightsongPrison_StartedReadyCheck", AVATAR)
+    sim.run(max_ms=1000)
+    check(not alert_open(client), "the setting switches it off")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+
+
+def test_knockout_reminder():
+    """A fight with Minthara or Minsc while knocking them out is still open brings a reminder."""
+    world, sim, server, client = make()
+    world.set_flag("GLO_Origin_PartOfTheTeam_Shadowheart")
+    world.set_flag("VISITEDREGION_WLD_Main_A")
+    fire_running(client, sim)
+    minthara = "S_GOB_DrowCommander_" + UUID["Minthara"]
+
+    # on the evil path she fights beside you: no reminder
+    server.mock.FireOsiris("EnteredCombat", minthara, "combat-1")
+    sim.run(max_ms=1000)
+    check(not alert_open(client), "no reminder when she is not your enemy")
+    world.enemies.add((UUID["Minthara"], guid(AVATAR)))
+    server.mock.FireOsiris("EnteredCombat", minthara, "combat-2")
+    sim.run(max_ms=1000)
+    check(alert_open(client), "a fight against her while the good path is open")
+    text = visible_labels(client, "CR.Alerts.win")
+    check("Minthara: knock out, do not kill" in text and "Non-Lethal Attacks" in text, f"what to do: {text!r}")
+    sim.run(max_ms=31000)
+    check(not alert_open(client), "it goes away by itself")
+
+    # knocked out: no more reminders
+    world.dbs["DB_KnockedOut"] = [(UUID["Minthara"],)]
+    sim.now += 130000                     # past the time a reminder is not repeated
+    server.mock.FireOsiris("EnteredCombat", minthara, "combat-3")
+    sim.run(max_ms=1000)
+    check(not alert_open(client), "nothing to remind once she is knocked out")
+
+    # Minsc in his hideout (Act 3); the setting switches it off
+    world.set_flag("VISITEDREGION_BGO_Main_A")
+    world.set_flag("VISITEDREGION_CTY_Main_A")
+    world.set_level("CTY_Main_A")
+    minsc = "S_Player_Minsc_" + UUID["Minsc"]
+    world.enemies.add((UUID["Minsc"], guid(AVATAR)))
+    server.mock.FireOsiris("EnteredCombat", minsc, "combat-4")
+    sim.run(max_ms=1000)
+    check(alert_open(client) and "Minsc: knock out" in visible_labels(client, "CR.Alerts.win"), "Minsc too")
+    client.eval("CR.Alerts.Hide()")
+    client.eval('CR.Settings.Set("koReminder", false)')
+    sim.now += 130000
+    server.mock.FireOsiris("EnteredCombat", minsc, "combat-5")
+    sim.run(max_ms=1000)
+    check(not alert_open(client), "the setting switches it off")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+
+
+def tree_texts(client, element_expr):
+    """Every live text below a UI element, in order, joined by '|'."""
+    return str(client.eval(f"""
+        local out = {{}}
+        local function walk(e)
+            for _, c in ipairs(rawget(e, "__children")) do
+                if not rawget(c, "__destroyed") then
+                    if rawget(c, "__type") == "Text" then out[#out + 1] = c.Label end
+                    walk(c)
+                end
+            end
+        end
+        walk({element_expr})
+        return table.concat(out, "|")
+    """))
+
+
+def test_approval_log():
+    """The last approval changes per companion: by how much, talking with whom, how long ago;
+    kept in the save."""
+    world, sim, server, client = make()
+    world.set_flag("GLO_Origin_PartOfTheTeam_Shadowheart")
+    world.set_flag("VISITEDREGION_WLD_Main_A")
+    world.approval[UUID["Shadowheart"]] = 20
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+    client.eval('CR.UI.Select("Shadowheart")')
+    sim.run()
+    check(client.eval("return CR.UI.page.alog.Visible") is False, "nothing logged yet: no section")
+    shadowheart = CHAR["Shadowheart"]
+
+    def change(value):
+        world.approval[UUID["Shadowheart"]] = value
+        server.mock.FireOsiris("ApprovalRatingChanged", shadowheart, AVATAR, value)
+        sim.run(max_ms=1000)
+
+    # in a conversation with Karlach (DB_DialogPlayers / DB_DialogNPCs, as the story keeps them)
+    world.dbs["DB_DialogPlayers"] = [(7, AVATAR, 1)]
+    world.dbs["DB_DialogNPCs"] = [(7, CHAR["Karlach"], 1)]
+    change(22)
+    # with someone who is not a companion: the game's own name for them, in the player's language
+    zevlor = "abcdefab-1234-5678-9abc-def012345678"
+    handle = "h11111111g2222g3333g4444g555555555555"
+    world.dbs["DB_DialogPlayers"] = [(8, AVATAR, 1)]
+    world.dbs["DB_DialogNPCs"] = [(8, "S_DEN_Zevlor_" + zevlor, 2), (8, CHAR["Karlach"], 3)]
+    world.names[zevlor] = handle + ";1"
+    client.mock.Loca[handle] = "Zevlor"
+    change(17)
+    # a long rest later, outside any conversation
+    world.dbs["DB_DialogPlayers"] = []
+    server.mock.FireOsiris("LongRestFinished")
+    sim.run(max_ms=1000)
+    change(19)
+    check(client.eval("return CR.UI.page.alog.Visible") is True, "the section appears")
+    dot = "  ·  "
+    expected = "|".join([
+        "+2", f"outside a conversation{dot}since your last long rest{dot}now 19",
+        "-5", f"talking with Zevlor{dot}1 long rest ago{dot}now 17",
+        "+2", f"talking with Karlach{dot}1 long rest ago{dot}now 22",
+    ])
+    got = tree_texts(client, "CR.UI.page.alogBody")
+    check(got == expected, f"newest first, in words:\n{got}\n{expected}")
+
+    # kept in the save: a reloaded save shows the same entries
+    stored = json.loads(str(server.eval("return Ext.Json.Stringify(Ext.Vars.vars.Log or {})")))
+    check(stored.get("rests") == 1 and len(stored["approval"][guid(AVATAR)][UUID["Shadowheart"]]) == 3,
+          f"the log is in the save: {stored}")
+    world2, sim2, server2, client2 = make(world, saved={"Log": stored})
+    fire_running(client2, sim2)
+    client2.eval("CR.UI.SetOpen(true)")
+    sim2.run()
+    client2.eval('CR.UI.Select("Shadowheart")')
+    sim2.run()
+    client2.mock.Loca[handle] = "Zevlor"
+    check(tree_texts(client2, "CR.UI.page.alogBody").count("now ") == 3, "the entries survive a reload")
+    # the first change after loading is measured against the game's value, not the log's
+    world.approval[UUID["Shadowheart"]] = 30          # changed while the mod was not looking
+    server2.eval("CR.ALog.Baseline(CR.Server.Players())")
+    world.approval[UUID["Shadowheart"]] = 31
+    server2.mock.FireOsiris("ApprovalRatingChanged", shadowheart, AVATAR, 31)
+    sim2.run(max_ms=1000)
+    check(tree_texts(client2, "CR.UI.page.alogBody").startswith("+1|"), "measured from the value at load")
+
+    # only the last ten are kept
+    for v in range(40, 52):
+        change(v)
+    kept = json.loads(str(server.eval("return Ext.Json.Stringify(Ext.Vars.vars.Log)")))["approval"][guid(AVATAR)][UUID["Shadowheart"]]
+    check(len(kept) == 10 and kept[-1]["v"] == 51, f"at most ten entries: {len(kept)}")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+    check(not server2.errors() and not client2.errors(), f"errors: {server2.errors()} {client2.errors()}")
+
+
+def test_item_awareness():
+    """A step that needs an item says whether the party has it, from the flags the story keeps on
+    every player who can reach the item (DB_HasItemEvent / DB_PlayerHasTemplateItem)."""
+    world, sim, server, client = make()
+    for name in ("Shadowheart", "Karlach"):
+        world.set_flag("GLO_Origin_PartOfTheTeam_" + name)
+    for f in ("VISITEDREGION_WLD_Main_A", "VISITEDREGION_SCL_Main_A"):
+        world.set_flag(f)
+    world.set_level("SCL_Main_A")
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+    client.eval('CR.UI.Select("Shadowheart")')
+    sim.run()
+
+    def line(step_id):
+        if not client.eval(f"return CR.UI.page.steps.{step_id}.item.Visible"):
+            return None
+        return str(client.eval(f"return CR.UI.page.steps.{step_id}.item.Label"))
+
+    check(line("SH_A2_ORCHID") == "You do not have a Night Orchid yet.", f"no orchid: {line('SH_A2_ORCHID')}")
+    world.set_flag("ORI_Shadowheart_State_HasNightOrchid", AVATAR)
+    server.mock.FireOsiris("FlagSet", "ORI_Shadowheart_State_HasNightOrchid_" + FLAG["ORI_Shadowheart_State_HasNightOrchid"],
+                           AVATAR, 0)
+    sim.run(max_ms=1000)
+    check(line("SH_A2_ORCHID") == "You have a Night Orchid.", f"picked one: {line('SH_A2_ORCHID')}")
+    check(line("SH_A2_NIGHTSONG") == "You do not have the Spear of Night yet.", f"the spear for the Shadowfell: {line('SH_A2_NIGHTSONG')}")
+    # once the step is done, the line goes away
+    world.quest("ORI_COM_ShadowHeart", "GaveNightOrchid")
+    server.mock.FireOsiris("QuestUpdateUnlocked", "", "ORI_COM_ShadowHeart", "GaveNightOrchid")
+    sim.run(max_ms=1000)
+    check(line("SH_A2_ORCHID") is None, "no item line on a finished step")
+
+    # Infernal Iron: any of its three templates
+    client.eval('CR.UI.Select("Karlach")')
+    sim.run()
+    world.set_flag("GLO_ForgingOfTheHeart_State_HasInfernalMetal_C", AVATAR)
+    server.eval("CR.Server.MarkDirty()")
+    sim.run(max_ms=1000)
+    check(line("KAR_A2_UPGRADE") == "You have Infernal Iron.", f"a piece of the third kind counts: {line('KAR_A2_UPGRADE')}")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+
+
 def test_data_integrity():
     _, _, server, client = make()
     errs = client.eval("return #CR.Guides.Errors")
@@ -1485,12 +2043,21 @@ TESTS = [
     test_patch_day_check,
     test_origin_avatar_and_console,
     test_mcm_integration,
+    test_tonight_at_camp,
+    test_not_interested,
+    test_point_of_no_return_alerts,
+    test_knockout_reminder,
+    test_approval_log,
+    test_item_awareness,
 ]
 
 
 def main():
     failed = 0
-    for t in TESTS:
+    # optional: only the tests whose name contains one of the arguments
+    wanted = [a for a in sys.argv[1:] if not a.startswith("-")]
+    tests = [t for t in TESTS if not wanted or any(w in t.__name__ for w in wanted)]
+    for t in tests:
         try:
             t()
             print(f"PASS  {t.__name__}")
@@ -1501,7 +2068,7 @@ def main():
             failed += 1
             print(f"ERROR {t.__name__}")
             traceback.print_exc()
-    print(f"\n{len(TESTS) - failed}/{len(TESTS)} tests passed")
+    print(f"\n{len(tests) - failed}/{len(tests)} tests passed")
     sys.exit(1 if failed else 0)
 
 

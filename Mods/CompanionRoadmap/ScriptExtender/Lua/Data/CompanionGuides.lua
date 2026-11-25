@@ -60,6 +60,14 @@ Guides.Markers = {
     endgame    = "END_General_State_Started",       -- final assault on the Netherbrain began
 }
 
+-- Flags "Tonight at camp" (Tracker/Camp.lua) reads that no step uses. Written with
+-- the condition constructors so tools/build_data.py validates them and generates
+-- their GUIDs like any other flag.
+Guides.CampFlags = {
+    -- set on you while you date two companions: no third romance can begin (GLO_CampNights)
+    doubleDating = C.P("ORI_State_DoubleDating"),
+}
+
 -- Regions the game marks as visited, mapped to the act they belong to.
 Guides.VisitedRegions = {
     { flag = "VISITEDREGION_WLD_Main_A", act = 1 },
@@ -217,6 +225,13 @@ function Guides.NeedsJoin(step)
     return step.romance == true or step.kind == "romance" or step.kind == "approval"
 end
 
+--- Whether a step is part of the romance itself, not a story step that only matters
+--- for it (Nightsong's fate is a story step marked `romance` for the romance filter).
+--- These are the steps "Not interested" switches off.
+function Guides.IsRomanceStep(step)
+    return type(step) == "table" and step.kind == "romance"
+end
+
 --- Called by each Data/Companions/*.lua file.
 function Guides.Register(def)
     if type(def) ~= "table" or type(def.id) ~= "string" then
@@ -266,6 +281,15 @@ function Guides.Register(def)
             step.todo = step.todo or {}
             step.avoid = step.avoid or {}
             step.changes = step.changes or {}
+            if step.campScene ~= nil and type(step.campScene) ~= "boolean" then
+                addError("step '%s': 'campScene' must be true or false", step.id)
+                step.campScene = nil
+            end
+            if step.item ~= nil and (type(step.item) ~= "table" or type(step.item.label) ~= "string"
+                or type(step.item.has) ~= "table" or step.item.has.k == nil) then
+                addError("step '%s': 'item' needs a label and a 'has' condition", step.id)
+                step.item = nil
+            end
             if step.alt then
                 -- alternative paths: the window shows them as equal choices (CHOOSE)
                 Guides.AltGroups[step.alt] = Guides.AltGroups[step.alt] or {}
@@ -333,6 +357,7 @@ function Guides.BuildIndex()
     Guides.WatchedQuests = {}
     for _, name in pairs(Guides.Markers) do visit(C.G(name), "markers") end
     for _, r in ipairs(Guides.VisitedRegions) do visit(C.G(r.flag), "regions") end
+    for _, c in pairs(Guides.CampFlags) do visit(c, "camp") end
     for _, comp in ipairs(Guides.Companions) do
         local owner = comp.id
         visit(comp.recruited, owner)
@@ -352,10 +377,20 @@ function Guides.BuildIndex()
             for _, c in ipairs(step.done) do visit(c, who) end
             for _, c in ipairs(step.fail) do visit(c, who) end
             for _, c in ipairs(step.skip) do visit(c, who) end
+            if step.item then visit(step.item.has, who) end
             if step.after then
                 for _, dep in ipairs(step.after) do
                     if not Guides.StepById[dep] then addError("step '%s' depends on unknown step '%s'", step.id, dep) end
                 end
+            end
+        end
+    end
+    for _, comp in ipairs(Guides.Companions) do
+        local ko = comp.knockOut
+        if ko ~= nil then
+            if type(ko) ~= "table" or Guides.StepOwner[ko.step or ""] ~= comp or type(ko.text) ~= "string" then
+                addError("%s: 'knockOut' needs a step of this companion and a text", comp.id)
+                comp.knockOut = nil
             end
         end
     end

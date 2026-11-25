@@ -64,6 +64,59 @@ function Srv.ClearOverrides()
 end
 
 -- -----------------------------------------------------------------------------
+-- "Not interested": romances a player does not want in this playthrough. Kept per
+-- player (romance is per player in multiplayer), in the savegame like check-offs.
+-- -----------------------------------------------------------------------------
+Srv.NoRomance = {}         -- fallback when mod variables are unavailable
+
+local function noRomanceTable()
+    local vars = modVars()
+    local t = vars and vars.NoRomance
+    if type(t) == "table" then return t end
+    return Srv.NoRomance
+end
+
+--- { companion id -> true } for one player.
+function Srv.GetDeclined(avatar)
+    local g = CR.Guid(avatar)
+    local out = {}
+    if not g then return out end
+    local ok = pcall(function()
+        local mine = noRomanceTable()[g]
+        if type(mine) == "table" then
+            for id, v in pairs(mine) do
+                if v and Guides.ById[id] then out[id] = true end
+            end
+        end
+    end)
+    if not ok then return {} end
+    return out
+end
+
+function Srv.SetDeclined(avatar, compId, value)
+    local g = CR.Guid(avatar)
+    local comp = Guides.ById[compId or ""]
+    if not g or not comp or not comp.romanceable then return false end
+    -- a plain copy, reassigned whole so the variable manager notices the change
+    local copy = {}
+    pcall(function()
+        for player, set in pairs(noRomanceTable()) do
+            if type(set) == "table" then
+                copy[player] = {}
+                for id, v in pairs(set) do if v then copy[player][id] = true end end
+            end
+        end
+    end)
+    copy[g] = copy[g] or {}
+    copy[g][comp.id] = value and true or nil
+    if next(copy[g]) == nil then copy[g] = nil end
+    local vars = modVars()
+    if vars and pcall(function() vars.NoRomance = copy end) then return true end
+    Srv.NoRomance = copy
+    return true
+end
+
+-- -----------------------------------------------------------------------------
 -- Which avatar belongs to a client?
 -- -----------------------------------------------------------------------------
 local function osi(fn, ...)
@@ -100,8 +153,21 @@ function Srv.CheckReady()
     if type(host) == "string" and host ~= "" and CR.Eval.CurrentLevel(host) then
         Srv.Ready = true
         CR.Guard("game data check", Srv.CheckGameData)
+        -- the approval log measures each change against the value before it
+        CR.Guard("approval baseline", function() CR.ALog.Baseline(Srv.Players()) end)
     end
     return Srv.Ready
+end
+
+--- Every player character (DB_Avatars), falling back to the host.
+function Srv.Players()
+    local out = {}
+    for _, r in ipairs(CR.Eval.DbRows("DB_Avatars", nil) or {}) do out[#out + 1] = r[1] end
+    if #out == 0 then
+        local host = osi(Osi.GetHostCharacter)
+        if type(host) == "string" and host ~= "" then out[1] = host end
+    end
+    return out
 end
 
 -- -----------------------------------------------------------------------------
@@ -154,11 +220,14 @@ end
 local function diff(last, snap)
     local items = {}
     if not last then return items end
+    local declined = snap.nr or {}
     for id, r in pairs(snap.steps) do
         local now, before = r[1], last[id]
         local step = Guides.StepById[id]
-        if step and before ~= nil and before ~= now and before ~= S.OVERRIDE and toastWorthy(step, now) then
-            local owner = Guides.StepOwner[id]
+        local owner = Guides.StepOwner[id]
+        -- "Not interested": no news about a romance the player does not want
+        local unwanted = owner and declined[owner.id] and Guides.IsRomanceStep(step)
+        if step and before ~= nil and before ~= now and before ~= S.OVERRIDE and toastWorthy(step, now) and not unwanted then
             table.insert(items, { c = owner and owner.id or "?", id = id, s = now })
         end
     end
@@ -228,9 +297,19 @@ function Srv.RefreshPeer(peer, forceSend)
         return
     end
     local avatar = Srv.AvatarForPeer(peer)
-    local snap = CR.Eval.BuildSnapshot(avatar, Srv.GetOverrides())
+    local snap = CR.Eval.BuildSnapshot(avatar, Srv.GetOverrides(), Srv.GetDeclined(avatar))
     if #Srv.MissingFlags > 0 then snap.gone = #Srv.MissingFlags end   -- patch-day check
     if p.open or forceSend then
+        -- only what the window shows: tonight at camp and the approval log
+        local okCamp, camp, W = pcall(CR.Camp.Build, avatar)
+        if okCamp then
+            snap.camp = camp
+            Srv.CampFlags = CR.Camp.WatchedFlags(W)
+        else
+            CR.Debug("camp prediction failed: %s", tostring(camp))
+        end
+        local okLog, log = pcall(CR.ALog.For, avatar)
+        if okLog then snap.alog = log end
         local ok, err = pcall(function() CR.Net.State:SendToClient(snap, peer) end)
         if not ok then CR.Debug("send to %s failed: %s", tostring(peer), tostring(err)) end
     end
@@ -294,6 +373,77 @@ local function onOverride(msg, peer)
     end
 end
 
+--- "Not interested" toggled on a companion page or in Options (only for that player).
+local function onRomance(msg, peer)
+    if type(msg) ~= "table" or type(msg.id) ~= "string" then return end
+    if Srv.SetDeclined(Srv.AvatarForPeer(peer), msg.id, msg.value) then
+        local p = Srv.Peers[peer]
+        if p then p.baseline = true end
+        Srv.RefreshPeer(peer, true)
+    end
+end
+
+-- -----------------------------------------------------------------------------
+-- Alerts: the game is asking "are you sure?" before a point of no return, or a
+-- companion who must be knocked out has just entered a fight.
+-- -----------------------------------------------------------------------------
+
+-- The story writes these databases right as it opens the prompt (each one confirmed
+-- in the goal named next to it); ReadyCheckPassed/Failed(id) close it.
+--   DB_SHA_NightsongPrison_StartedReadyCheck(char)        Act2_SHA_NightsongPrison
+--   DB_MOO_Roof_ColonyTeleporterActivator(player, id)     Act2_MOO_Roof
+--   DB_GLO_LevelSwap_ReadyCheck(player, id)               GLO_LevelSwap (region changes)
+--   DB_END_ToMorphicPool_BoatUser(player)                 Act3b_END_EmperorPreludeCave
+Srv.LevelSwapDeadlines = {
+    ReadyCheck_ToBGFromSCL = "act3",          -- the act exit in the Shadow-Cursed Lands
+    ReadyCheck_ToLOWFromWYR = "lowercity",    -- Wyrm's Rock into the Lower City
+}
+Srv.OpenChecks = {}        -- ready check id -> deadline id, while the prompt is open
+
+function Srv.ReadyCheckStarted(deadline, checkId)
+    if not Guides.DeadlineById[deadline] or type(checkId) ~= "string" then return end
+    Srv.OpenChecks[checkId] = deadline
+    CR.Debug("point of no return asked: %s (%s)", deadline, checkId)
+    for peer in pairs(Srv.Peers) do
+        CR.Guard("refresh", Srv.RefreshPeer, peer, true)      -- what is open right now
+        pcall(function() CR.Net.Alert:SendToClient({ k = "ponr", d = deadline, id = checkId }, peer) end)
+    end
+end
+
+function Srv.ReadyCheckEnded(checkId)
+    if type(checkId) ~= "string" or not Srv.OpenChecks[checkId] then return end
+    Srv.OpenChecks[checkId] = nil
+    for peer in pairs(Srv.Peers) do
+        pcall(function() CR.Net.Alert:SendToClient({ k = "ponr", id = checkId, close = true }, peer) end)
+    end
+end
+
+local KO_REPEAT_MS = 120000
+Srv.KoShown = {}           -- companion id -> when the reminder was last sent
+
+--- A companion who has to be knocked out (data: `knockOut`) entered a fight. Remind
+--- every player for whom that step is still open, if the companion is hostile.
+function Srv.OnEnteredCombat(character)
+    local comp = Guides.ByUuid[CR.Guid(character) or ""]
+    if not comp or not comp.knockOut or not Srv.CheckReady() then return end
+    local now = CR.Now()
+    if Srv.KoShown[comp.id] and now - Srv.KoShown[comp.id] < KO_REPEAT_MS then return end
+    for peer in pairs(Srv.Peers) do
+        local avatar = Srv.AvatarForPeer(peer)
+        -- on the evil path Minthara fights beside you: no reminder then
+        if avatar and osi(Osi.IsEnemy, comp.uuid, avatar) == 1 then
+            local snap = CR.Eval.BuildSnapshot(avatar, Srv.GetOverrides(), Srv.GetDeclined(avatar))
+            local r = snap.steps[comp.knockOut.step]
+            local st = r and r[1]
+            local open = st and st ~= S.DONE and st ~= S.OVERRIDE and st ~= S.MISSED and st ~= S.NA
+            if open and not (snap.comps[comp.id] or {}).lost then
+                Srv.KoShown[comp.id] = now
+                pcall(function() CR.Net.Alert:SendToClient({ k = "ko", c = comp.id }, peer) end)
+            end
+        end
+    end
+end
+
 -- -----------------------------------------------------------------------------
 -- Osiris listeners: only react to things the guides actually watch
 -- -----------------------------------------------------------------------------
@@ -307,14 +457,20 @@ end
 
 --- A watched flag changed. When it was set, it is written into the choice memory at
 --- once: some flags are cleared again before the next snapshot is built.
+Srv.CampFlags = {}        -- flags pending camp scenes depend on (Tracker/Camp.lua)
+
 local function onFlag(flag, target, wasSet)
     local g = CR.Guid(flag)
-    if not (g and Guides.WatchedFlags[g]) then return end
-    if wasSet and CR.Memory then
-        CR.Memory.Note(CR.Memory.FlagKey(g, target))
-        CR.Memory.Commit()
+    if not g then return end
+    if Guides.WatchedFlags[g] then
+        if wasSet and CR.Memory then
+            CR.Memory.Note(CR.Memory.FlagKey(g, target))
+            CR.Memory.Commit()
+        end
+        Srv.MarkDirty()
+    elseif Srv.CampFlags[g] then
+        Srv.MarkDirty()          -- only "Tonight at camp" changes; nothing to remember
     end
-    Srv.MarkDirty()
 end
 
 --- The game removed a companion for good and said why (second argument). Most of
@@ -339,6 +495,7 @@ function Srv.Init()
     if not CR.Net.Ready then return end
     CR.Net.Hello:SetHandler(function(msg, peer) CR.Guard("Hello", onHello, msg, peer) end)
     CR.Net.Override:SetHandler(function(msg, peer) CR.Guard("Override", onOverride, msg, peer) end)
+    CR.Net.Romance:SetHandler(function(msg, peer) CR.Guard("Romance", onRomance, msg, peer) end)
     CR.Net.Report:SetHandler(function(_, peer)
         CR.Guard("Report", function()
             local ok, info = Srv.WriteReport(Srv.AvatarForPeer(peer))
@@ -353,8 +510,37 @@ function Srv.Init()
     listen("QuestUpdateUnlocked", 3, function(_, quest)
         if Guides.WatchedQuests[quest] then Srv.MarkDirty() end
     end)
-    listen("ApprovalRatingChanged", 3, function(npc)
-        if isTrackedCharacter(npc) then Srv.MarkDirty() end
+    -- MarkDirty only schedules a refresh, so it goes first: whatever happens in the
+    -- approval log, the window still shows the new approval and tonight's scenes
+    listen("ApprovalRatingChanged", 3, function(npc, player, value)
+        if not isTrackedCharacter(npc) then return end
+        Srv.MarkDirty()
+        CR.Guard("approval log", CR.ALog.OnChanged, npc, player, value, CR.Memory and CR.Memory.act or 0)
+    end)
+    -- a night passed: camp scenes played or ran out, and the approval log counts rests
+    listen("LongRestFinished", 0, function()
+        Srv.MarkDirty()
+        CR.Guard("approval log", CR.ALog.OnRest)
+    end)
+    -- the game's own "are you sure?" before a point of no return
+    listen("DB_SHA_NightsongPrison_StartedReadyCheck", 1, function()
+        Srv.ReadyCheckStarted("act1", "ReadyCheck_EnterNightsongPrison")
+    end)
+    listen("DB_MOO_Roof_ColonyTeleporterActivator", 2, function(_, checkId)
+        Srv.ReadyCheckStarted("colony", checkId)
+    end)
+    listen("DB_GLO_LevelSwap_ReadyCheck", 2, function(_, checkId)
+        local deadline = Srv.LevelSwapDeadlines[checkId]
+        if deadline then Srv.ReadyCheckStarted(deadline, checkId) end
+    end)
+    listen("DB_END_ToMorphicPool_BoatUser", 1, function()
+        Srv.ReadyCheckStarted("endgame", "END_ReadyCheck_MorphicPool")
+    end)
+    listen("ReadyCheckPassed", 1, Srv.ReadyCheckEnded)
+    listen("ReadyCheckFailed", 1, Srv.ReadyCheckEnded)
+    -- a companion who has to be knocked out instead of killed starts fighting
+    listen("EnteredCombat", 2, function(character)
+        if isTrackedCharacter(character) then Srv.OnEnteredCombat(character) end
     end)
     for _, ev in ipairs({ "Died", "Resurrected", "CharacterJoinedParty", "CharacterLeftParty" }) do
         listen(ev, 1, function(ch) if isTrackedCharacter(ch) then Srv.MarkDirty() end end)
@@ -371,6 +557,8 @@ function Srv.Init()
     listen("LevelGameplayStarted", 2, function()
         Srv.Ready = false
         if CR.Memory then CR.Memory.Load() end     -- the memory belongs to the save that just loaded
+        CR.ALog.Load()                             -- and so does the approval log
+        Srv.OpenChecks = {}                        -- a prompt cannot survive a load
         Srv.CheckReady()
         -- the save just (re)loaded: rebuild baselines without toasting
         for _, p in pairs(Srv.Peers) do p.baseline = true end
@@ -430,24 +618,14 @@ local function probeEverything(ctx)
             for _, list in ipairs({ step.done, step.fail, step.skip }) do
                 for _, c in ipairs(list) do probe(c, comp) end
             end
+            if step.item then probe(step.item.has, comp) end
         end
     end
 end
 
---- Up to `limit` rows of a database with `columns` columns, mapped through `pick`.
-local function dbDump(name, columns, pick, limit)
-    local rows = CR.Eval.DbRows(name, table.unpack({}, 1, columns))
-    local out = {}
-    for i, row in ipairs(rows or {}) do
-        if i > (limit or 400) then break end
-        out[#out + 1] = pick(row)
-    end
-    return out
-end
-
 function Srv.BuildReport(avatar)
     local E = CR.Eval
-    local snap, ctx = E.BuildSnapshot(avatar, Srv.GetOverrides())
+    local snap, ctx = E.BuildSnapshot(avatar, Srv.GetOverrides(), Srv.GetDeclined(avatar))
     probeEverything(ctx)
 
     local flags, quests = {}, {}
@@ -513,15 +691,18 @@ function Srv.BuildReport(avatar)
         missingFlags = (#Srv.MissingFlags > 0) and Srv.MissingFlags or nil,
     }
 
-    -- the camp scheduler, for the "tonight at camp" work (best effort)
-    local okCamp, camp = pcall(function()
-        return {
-            nights = dbDump("DB_CampNight", 2, function(r) return { tostring(r[1]), r[2] } end),
-            completed = dbDump("DB_CampNight_Completed", 1, function(r) return tostring(r[1]) end),
-            expiring = dbDump("DB_CampNight_StartedExpiring", 2, function(r) return { tostring(r[1]), r[2] } end),
-        }
-    end)
-    if okCamp then report.camp = camp end
+    -- the camp-scene scheduler's tables and what "Tonight at camp" made of them
+    -- (best effort: a report must never fail because of them)
+    local okCamp, camp = pcall(CR.Camp.Export)
+    if okCamp then report.scheduler = camp end
+    local okTonight, tonight = pcall(CR.Camp.Build, avatar)
+    if okTonight then report.tonight = tonight end
+    local okLog, log = pcall(CR.ALog.Export)
+    if okLog then report.approvalLog = log end
+    local declined = {}
+    for id in pairs(Srv.GetDeclined(avatar)) do declined[#declined + 1] = id end
+    table.sort(declined)
+    if #declined > 0 then report.noRomance = declined end
     return report
 end
 
@@ -539,8 +720,40 @@ function Srv.WriteReport(avatar)
         #report.raw.flags, #report.raw.quests)
 end
 
+--- "!roadmap camp": the camp prediction with internal names, to compare with what
+--- the game then plays at the next long rest.
+function Srv.PrintCamp(avatar)
+    if not Srv.CheckReady() then CR.Warn("Load a save first.") return end
+    local camp, W = CR.Camp.Build(avatar)
+    CR.Info("Tonight at camp: camp=%s, %d scenes waiting in the scheduler%s", tostring(W.active), #W.nights,
+        camp.ok and "" or (" - no prediction (" .. tostring(camp.why) .. ")"))
+    for i, t in ipairs(camp.tonight) do
+        local n = W.byGuid[t.g or ""]
+        CR.Info("  %d. %s  (%s, priority %s)", i, t.s and ("step " .. t.s)
+            or (t.c and ("scene with " .. t.c .. (t.r and " (romance)" or "")))
+            or (t.d and "a dream") or (t.e and "a campfire moment") or "a camp scene",
+            n and tostring(n.raw) or "?", n and tostring(n.p) or "?")
+    end
+    local ids = {}
+    for id in pairs(camp.steps) do ids[#ids + 1] = id end
+    table.sort(ids)
+    for _, id in ipairs(ids) do
+        local e = camp.steps[id]
+        local parts = {}
+        for _, b in ipairs(e.b or {}) do
+            local bits = {}
+            for _, v in ipairs(b) do bits[#bits + 1] = tostring(v) end
+            parts[#parts + 1] = table.concat(bits, ":")
+        end
+        CR.Info("  %-18s %s%s", id, e.t and "TONIGHT" or table.concat(parts, ", "), e.x and ("  (rests left: " .. e.x .. ")") or "")
+    end
+    for _, n in ipairs(W.nights) do
+        CR.Debug("    prio %5d  %s", n.p, tostring(n.raw))
+    end
+end
+
 -- -----------------------------------------------------------------------------
--- Console: !roadmap [diag|steps <Companion>|report|memory|forget|resetoverrides|debug]
+-- Console: !roadmap [diag|steps <Companion>|camp|report|memory|forget|resetoverrides|debug]
 -- -----------------------------------------------------------------------------
 local STATUS_NAMES = {
     D = "done", O = "checked", N = "NEXT", A = "available", P = "pending",
@@ -569,9 +782,13 @@ function Srv.RegisterConsole()
             CR.Info("  '!roadmap forget' clears it.")
         elseif sub == "forget" then
             if CR.Memory then CR.Memory.Forget() end
+            CR.ALog.Forget()
+            CR.ALog.Baseline(Srv.Players())
             for _, p in pairs(Srv.Peers) do p.baseline = true end
             Srv.Flush()
-            CR.Info("Everything the roadmap remembered in this save was forgotten. What the save still shows is unaffected.")
+            CR.Info("Everything the roadmap remembered in this save was forgotten, approval log included. What the save still shows is unaffected.")
+        elseif sub == "camp" then
+            Srv.PrintCamp(Srv.AvatarForPeer(nil))
         elseif sub == "report" then
             local ok, info = Srv.WriteReport(Srv.AvatarForPeer(nil))
             if ok then

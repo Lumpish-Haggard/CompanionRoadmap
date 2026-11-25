@@ -149,16 +149,19 @@ T.Status = {
     ["?"] = { label = "...",  color = T.C.faint, title = T.C.dim },
     -- not a status of its own: how a TO DO step is shown when it is optional
     OPT = { label = "OPTIONAL", color = T.C.dim, title = T.C.text },
+    -- not a status of its own: where a romance you do not want can begin ("Not interested")
+    NO = { label = "SAY NO", color = T.C.romance, title = T.C.text },
 }
 
 -- Order used by the status legend
-T.StatusOrder = { "N", "C", "A", "OPT", "I", "P", "U", "D", "O", "M", "X" }
+T.StatusOrder = { "N", "C", "A", "OPT", "NO", "I", "P", "U", "D", "O", "M", "X" }
 
 T.StatusHelp = {
     N = "The next thing to do for this companion.",
     C = "One of several paths, all open. Take the one you want; the others close once you do.",
     A = "Can be done now.",
     OPT = "Can be done now, but skipping it costs you nothing important.",
+    NO = "A romance you marked as not wanted can begin here. Turn it down in this conversation.",
     I = "A step from an earlier act that the game never recorded. It may still be possible, or you did it in a way "
         .. "the game does not track. If you did it, check it off.",
     P = "Waits for an earlier step.",

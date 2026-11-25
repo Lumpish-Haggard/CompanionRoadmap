@@ -28,7 +28,8 @@ Press **F7** and pick a companion:
 
 - **Where you stand**: recruited, dating, partnered or lost; live approval and its tier; special trackers such as Shadowheart's hidden *Nightsong points*, Karlach's engine upgrades and the magic items fed to Gale.
 - **What to do next**: every step of their personal quest and romance, act by act, with location, what to do, what to avoid, rewards, and the approval the step needs next to your current approval. The next step is highlighted.
-- **What you are about to lose**: the *Before you move on* tab lists each upcoming point of no return and the important steps still open before it. Click an entry to jump to it.
+- **What you are about to lose**: the *Before you move on* tab lists each upcoming point of no return and the important steps still open before it, and when the game itself asks "are you sure?" before one, a heads-up shows that list right then.
+- **Tonight at camp**: which camp scenes play if you rest now, and what the others are still waiting for ("Needs 40 approval with Shadowheart (you have 31)").
 - **How not to lose them**: every companion's page opens with its *Golden rules*, the choices that make that companion die or leave for good, and a short *For every companion* list of the ones that apply to all of them.
 
 Steps tick themselves off as you play. Everything is detected from the game's own journal, story flags and approval values. The mod only reads the game, so it is safe to add to or remove from an ongoing playthrough.
@@ -39,7 +40,12 @@ Steps tick themselves off as you play. Everything is detected from the game's ow
 - **Golden rules** for each of them, 71 in all: the choices that make a companion die, leave for good or end a romance. [What was reviewed, and against what](docs/COVERAGE.md).
 - **Live statuses**: Next, To do, Not seen, Waiting, Later, Done, Checked, Missed, N/A, updated within half a second of the game changing.
 - **Looks like it belongs in the game**: a quiet dark panel in BG3's own Quadraat typeface, gold headings, and colour only where it means something.
-- **Points of no return**: the Shadowfell (Act 1 locks), the Mind Flayer Colony, leaving for Baldur's Gate, the Lower City and the final battle. Each comes with a short list of what you would lose.
+- **Points of no return**: the Shadowfell (Act 1 locks), the Mind Flayer Colony, leaving for Baldur's Gate, the Lower City and the final battle. Each comes with a short list of what you would lose, shown again as a heads-up when the game asks whether you are ready to go on.
+- **Tonight at camp**: the roadmap reads the game's own camp-scene scheduler and repeats its choice, so it can say which scenes play at your next long rest, what holds back the others (approval, being their partner, a story moment still to come, a more important scene first) and which are about to run out.
+- **Not interested** in a romance? Mark it on the companion's page. Its steps then only show where the romance can begin, labelled *SAY NO*, so you know which conversation to turn it down in, and its notices stop.
+- **Do you have the item?** Steps that need one say whether your party has it, camp chest included: the Night Orchid, the Spear of Night, Infernal Iron for Karlach and more.
+- **Recent approval changes** per companion: by how much, who you were talking to, how many long rests ago.
+- **Knock out, do not kill**: a reminder when a fight starts against Minthara or Minsc while you can still recruit them.
 - **Notifications** when a tracked step is completed, or when an important one is missed, wherever you want them on screen.
 - **Every path is yours to choose**: where a companion's story splits (Minthara: knock her out, or raid the Grove with her), the paths are shown side by side as equals, with what each one changes.
 - **Manual check-offs** for anything the game does not record or another mod changes. They are saved inside each savegame.
@@ -77,6 +83,8 @@ To uninstall, disable or remove it. Saves made with it still load; the game only
 | Open from MCM | *Mod Configuration Menu > Companion & Romance Roadmap > Open roadmap* |
 | Read a step | Click it to expand: where, what to do, what to avoid, rewards, approval needed. Hover a status to see what it means. |
 | See what you would miss | Open the *Before you move on* tab (the orange line under the header counts the open items). Click an entry to jump to it. |
+| See what plays at camp tonight | Open the *Tonight at camp* tab. Click a scene to jump to its step. |
+| Avoid a romance | On the companion's page, open *Romance path* and tick *Not interested*. Untick it to undo. |
 | Check off a step | Expand it and tick *I did this - mark it as done*. |
 | Refresh | The window updates by itself; *Options > Refresh now* forces it. |
 | Close | **Esc**, the toggle key, or the X. |
@@ -90,6 +98,7 @@ To uninstall, disable or remove it. Saves made with it still load; the game only
 | `CHOOSE` | One of several paths, all open (for example Minthara: knock her out, or raid the Grove with her). Take the one you want; the others close once you do |
 | `TO DO` | Can be done now |
 | `OPTIONAL` | Can be done now, but skipping it costs you nothing important |
+| `SAY NO` | A romance you marked as not wanted can begin here: turn them down in this conversation |
 | `NOT SEEN` | From an earlier act and not detected. It may still be possible, or the game does not record it, so check it off if you did it. |
 | `WAITING` | Waits for an earlier step |
 | `LATER` | Belongs to a later act |
@@ -100,7 +109,7 @@ To uninstall, disable or remove it. Saves made with it still load; the game only
 
 ### Options
 
-In the *Options* tab: hide finished steps · romance steps only · spoiler level · show how each step is tracked · companion portraits · notifications (romance and important steps, or every step) · where notices appear (presets, or anywhere with two sliders; *Show a test notice* previews it) · window opacity · hotkey · Esc closes the window · clear all check-offs · create a report file. With MCM installed, the same options appear on the MCM page and stay in sync.
+In the *Options* tab: hide finished steps · romance steps only · spoiler level · show how each step is tracked · companion portraits · notifications (romance and important steps, or every step) · the heads-up at points of no return · the knock-out reminder · where notices appear (presets, or anywhere with two sliders; *Show a test notice* previews it) · window opacity · hotkey · Esc closes the window · clear all check-offs · romances you do not want (also on each companion's page) · create a report file. With MCM installed, the same options appear on the MCM page and stay in sync (romances you do not want are kept in your save instead).
 
 ### Console commands
 
@@ -111,9 +120,10 @@ Open the Script Extender console:
 | `!roadmap` | client | toggle the window (`open`, `close`, `hotkey`, `debug` also work) |
 | `!roadmap` | server | print what the tracker sees: act, approval, relationships, step counts |
 | `!roadmap steps Minthara` | server | list one companion's steps and statuses |
+| `!roadmap camp` | server | what *Tonight at camp* predicts, with the game's own scene names and priorities, and what holds back the guide's other scenes |
 | `!roadmap report` | server | write `Script Extender/CompanionRoadmap/report.json`: everything the tracker sees, for bug reports |
 | `!roadmap memory` | server | how much the roadmap remembers in this save, and which companions the game removed and why |
-| `!roadmap forget` | server | forget everything remembered in this save (what the save itself shows is unaffected) |
+| `!roadmap forget` | server | forget everything remembered in this save, approval log included (what the save itself shows is unaffected) |
 | `!roadmap resetoverrides` | server | clear all manual check-offs in this save |
 
 ## What is covered
@@ -206,9 +216,9 @@ Mods/CompanionRoadmap/            the mod (what goes into the .pak)
     Bootstrap{Server,Client}.lua
     Shared/      namespace, logging, timers, network channels
     Data/        guide registry, one file per companion, generated Flags.lua
-    Tracker/     evaluation (server) and live sync
+    Tracker/     evaluation, memory, camp scenes, approval log (server) and live sync
     Client/      settings, hotkey, network client
-    UI/          overlay window, notifications, theme
+    UI/          overlay window, notifications, heads-ups, theme
 Public/CompanionRoadmap/          portrait definitions (they point at textures that ship with the game)
 tools/            game-data extraction, validation, search, test harness
 tests/fixtures/   report files from real saves, replayed as regression tests

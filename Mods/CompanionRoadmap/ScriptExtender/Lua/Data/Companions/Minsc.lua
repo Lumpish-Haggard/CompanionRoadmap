@@ -19,6 +19,13 @@ CR.Guides.Register {
     left = { Q(HH, "MinscDefeated"), Q(HH, "FailedToSaveMinsc"), F("ORI_Minsc_State_PermaDefeated", "any") },
     -- Until he has joined, the game keeps the tags on him that otherwise mean "gone for good".
     joined = Q(HH, "RecruitedMinsc"),
+    -- reminder when the fight in his hideout starts (Act3b_LOW_MinscHideout hooks
+    -- EnteredCombat(S_Player_Minsc) the same way)
+    knockOut = {
+        step = "MINSC_A3_KO",
+        text = "To save him, knock him out instead of killing him: switch on Non-Lethal Attacks (Passives) "
+            .. "and finish him with a melee weapon or an unarmed strike. Kill the doppelganger and the cultists around him normally.",
+    },
 
     rules = {
         { act = 2, "Jaheira must be recruited in Act 2 - without her, Minsc cannot be saved." },

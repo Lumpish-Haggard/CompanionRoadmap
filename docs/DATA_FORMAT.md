@@ -38,6 +38,7 @@ local SH = "ORI_COM_ShadowHeart"
 | `joined` | condition | Only for a companion the game tags as "gone" before they ever join (Minsc): the moment after which those tags can be trusted. |
 | `revivable` | string | Only for a companion who can still be revived when they die before joining (Wyll, Lae'zel): the sentence that says how. |
 | `romance` | table | `dating`, `partnered`, `ex` conditions and a `closed` list (romance ended). |
+| `knockOut` | table | Only for a companion you recruit by knocking them out (Minthara, Minsc): `{ step = "<that step>", text = "<what to do>" }`. When a fight against them starts while that step is open, the text is shown as a reminder. |
 | `rules` | string list | The "Golden rules" shown at the top of the page: things that lose the companion. |
 | `romanceNotes` | string list | The "Romance path" summary. |
 | `counters` | list | Live counters such as Nightsong points: `{ id, label, need, help, items = { { label, cond } }, reached = cond }`. |
@@ -49,7 +50,7 @@ local SH = "ORI_COM_ShadowHeart"
 |---|---|---|
 | `id` | string | Unique across all companions. Convention: `<PREFIX>_A<act>_<NAME>`, e.g. `KAR_A2_UPGRADE`. Never rename a released id: manual check-offs are stored by id. |
 | `act` | 0-3 | 0 = prologue (shown in the Act 1 section), 1, 2 or 3. |
-| `kind` | string | `recruit`, `story`, `romance`, `choice` or `approval`. Recruit and romance steps become N/A when you play as that origin. |
+| `kind` | string | `recruit`, `story`, `romance`, `choice` or `approval`. Recruit and romance steps become N/A when you play as that origin. `romance` means the step is part of the romance itself: those are the steps "Not interested" switches off (see [Not interested](#not-interested)). |
 | `title` | string | Short and specific. Romance steps start with `Romance:`. |
 | `where` | string | Location; add `(X:.. Y:..)` coordinates only when verified. |
 | `todo` | string list | One action per line, imperative. |
@@ -69,6 +70,8 @@ local SH = "ORI_COM_ShadowHeart"
 | `closes` | deadline id | The point of no return after which this step can no longer be done. |
 | `alt` | string | Group of alternative paths (e.g. Minthara: knock her out, or raid the Grove with her). While two or more of them can be taken, they are all shown as **CHOOSE**, as equals: none is NEXT and none is optional. Once one is done, the others become N/A. Use a name that is unique across companions. Write each path neutrally: its costs go in `changes`, not in `avoid`. |
 | `changes` | string list | What taking this step changes, shown under "What it changes" without warning colours. For paths, where a choice has costs the player may well accept ("Karlach and Wyll leave you"). `avoid` is for mistakes. |
+| `item` | table | An item the step needs: `{ label = "a Night Orchid", has = <condition> }`. While the step is open it says "You have a Night Orchid." or "You do not have a Night Orchid yet." See [Items](#items). |
+| `campScene` | bool | Set `false` when a camp scene in `done` only proves that something else happened (the Grove's celebration on "Save the Grove"). Otherwise a step with a `NIGHT_*` flag in `done` is treated as that camp scene in "Tonight at camp". |
 
 ## Conditions
 
@@ -158,7 +161,7 @@ skip = { Q(SH, "CampFight_LaezelDied"), C.Lost("Laezel") },
 
 These are the labels the window shows (`UI/Theme.lua`); the code uses one-letter status codes (`CR.Status`).
 
-Then `alt` groups are resolved: once one path is done, the others become **N/A**; while two or more paths are still open, they become **CHOOSE**. Finally the first TO DO step becomes **NEXT** (required steps before optional ones), unless a CHOOSE step comes first: then the choice itself is what to do next, and no single step is marked.
+Then `alt` groups are resolved: once one path is done, the others become **N/A**; while two or more paths are still open, they become **CHOOSE**. If the player marked the companion's romance as not wanted, the romance steps are adjusted next (see [Not interested](#not-interested)). Finally the first TO DO step becomes **NEXT** (required steps before optional ones), unless a CHOOSE step comes first: then the choice itself is what to do next, and no single step is marked.
 
 ### Choice memory
 
@@ -168,6 +171,14 @@ From 1.1 the tracker writes down, in the save, every watched flag it sees set (w
 - Memory only ever turns a step into DONE. It cannot make a step missed, and a `fail` condition that holds always wins, so put real failures in `fail` rather than relying on a `done` flag going away.
 - When the game removes a companion for good, it gives a reason (the second argument of `PROC_Origins_CompanionLeavePermanently`). Write a plain sentence for any new reason in `Guides.LeaveReasons` (or `Guides.LeaveReasonsFor.<Companion>` when one companion uses a reason differently); it is shown on the companion's page.
 
+### Not interested
+
+A player can mark a companion's romance as not wanted. Then, for that player, the steps of `kind = "romance"` change: what happened stays DONE; a `romanceStart` step that can happen now stays open, labelled `SAY NO`, and never becomes NEXT; every other one becomes N/A. Steps of another kind are not affected, even with `romance = true` (Nightsong's fate is part of Shadowheart's story whatever happens between you). So give a step `kind = "romance"` only if it is part of the romance itself.
+
+### Items
+
+`has` is an ordinary condition, normally on the flag the story itself keeps for the item. The story sets such a flag on every player who can reach the item, camp chest included: look for `DB_HasItemEvent(<item>, <flag>)` (one unique item) or `DB_PlayerHasTemplateItem(<template>, <flag>)` (any item of a template) in the story goals. These are object flags, so use `P(...)`. An item that comes in several templates (Infernal Iron) is `C.Any{...}` of their flags. Name the item exactly as the game does.
+
 ### Camp scenes
 
 A step that is completed by a camp scene (`NIGHT_*`) must agree with the game's camp-scene scheduler. With the game-data cache present, `tools/build_data.py` checks that:
@@ -175,6 +186,8 @@ A step that is completed by a camp scene (`NIGHT_*`) must agree with the game's 
 - `approval` is the value the scheduler asks for (one more than the stored value for a scene that starts a romance, since it asks for strictly more);
 - a scene that only plays while you are dating or partnered comes after a step that establishes that, through `after`;
 - when the scene is the step's only `done` route, whatever cancels it is in `fail` or `skip`, or comes no earlier than the step's `closes` deadline. A scene can also be only the question that leads to the real moment (Karlach asks how you will cool her down): then the step should be done by the moment itself.
+
+In the game, "Tonight at camp" reads the same scheduler at runtime and shows such a step as playing at the next long rest, or says what it still needs (approval, being their partner, a story moment). When a missing requirement flag is in another step's `done` list, that step is named; listing the flag a scene waits for in the step that sets it makes those explanations better.
 
 ## Deadlines (`closes`)
 

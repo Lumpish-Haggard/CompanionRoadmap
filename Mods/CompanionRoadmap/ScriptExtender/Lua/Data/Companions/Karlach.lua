@@ -15,6 +15,16 @@ local FIRST_UPGRADE = C.Any {
     Q(HEART, "KarlachFullyUpgraded_Act2"), Q(HEART, "KarlachFullyUpgraded_Act3"),
 }
 local SECOND_UPGRADE = C.Any { Q(HEART, "KarlachFullyUpgraded_Act2"), Q(HEART, "KarlachFullyUpgraded_Act3") }
+-- Infernal Iron comes in three item templates (LOOT_Ketheric_Infernal_Plate_A/B/C); the
+-- story keeps one flag per template on every player who can reach a piece
+-- (DB_PlayerHasTemplateItem in GLO_Origin_Karlach_PostEA)
+local INFERNAL_IRON = {
+    label = "Infernal Iron",
+    has = C.Any {
+        P("GLO_ForgingOfTheHeart_State_HasInfernalMetal_A"), P("GLO_ForgingOfTheHeart_State_HasInfernalMetal_B"),
+        P("GLO_ForgingOfTheHeart_State_HasInfernalMetal_C"),
+    },
+}
 
 CR.Guides.Register {
     id = "Karlach",
@@ -108,6 +118,7 @@ CR.Guides.Register {
             rewards = "First engine upgrade (new passive). Unlocks 'Of course I do' (+approval) when she asks if you want to touch her.",
             done = { FIRST_UPGRADE },
             fail = { Q(HEART, "DammonPermadefeated"), Q(HEART, "DammonNeverMet") },
+            item = INFERNAL_IRON,
             after = { "KAR_A1_RECRUIT" },
         },
         {
@@ -162,6 +173,7 @@ CR.Guides.Register {
             avoid = { "Leaving Act 2 without it - you must then find Dammon again in Baldur's Gate." },
             rewards = "Karlach can touch people again. Unlocks her Act 2 romance night.",
             done = { SECOND_UPGRADE },
+            item = INFERNAL_IRON,
             fail = { Q(HEART, "DammonPermadefeated"), Q(HEART, "ForgingOfTheHeart_ReachEND") },
         },
         {

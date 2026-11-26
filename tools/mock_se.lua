@@ -115,6 +115,13 @@ local FLAGS = {
         "PreferSortAscending", "PreferSortDescending", "IndentEnable", "IndentDisable", "AngledHeader" },
 }
 
+-- BG3SE (v33 and main) draws a child window with ImGui::BeginChildEx(label, id, size, Flags, ChildFlags),
+-- but ImGui takes (child flags, window flags) in that order: a child window's window flags arrive as
+-- child flags (NoTitleBar draws a border, NoMove makes it resizable, NoNavInputs does nothing). They are
+-- refused here so that nothing relies on them.
+local WINDOW_FLAG = {}
+for _, f in ipairs(FLAGS.Window) do WINDOW_FLAG[f] = true end
+
 -- Fonts the extender registers itself (IMGUIManager::InitializeUI); others come from Ext.IMGUI.LoadFont.
 local BUILTIN_FONTS = { Tiny = true, Small = true, Medium = true, Default = true, Large = true, Big = true }
 Mock.Fonts = {}
@@ -313,6 +320,10 @@ local function method(e, name)
         end
     end
     if name == "Open" then return function(self) self.__values.Open = true end end
+    if name == "SetFocus" then
+        -- remembered for tests: how often the window asked for the focus
+        return function(self) rawset(self, "__focus", (rawget(self, "__focus") or 0) + 1) end
+    end
     if name == "SetPos" then
         return function(self, pos, cond, pivot)
             if type(pos) ~= "table" or #pos ~= 2 then fail("SetPos: expected {x,y}", 2) end
@@ -423,6 +434,10 @@ Element.__newindex = function(e, key, value)
     local cls = e.__cls
     if cls.flags[key] then
         if type(value) ~= "boolean" then fail(e.__type .. "." .. key .. " expects a boolean", 2) end
+        if e.__type == "ChildWindow" and WINDOW_FLAG[key] then
+            fail("ChildWindow." .. key .. ": the extender hands a child window's window flags to ImGui as "
+                .. "child flags, so they do not do what they say", 2)
+        end
     elseif not cls.props[key] then
         fail("IMGUI " .. e.__type .. " has no property '" .. tostring(key) .. "'", 2)
     end

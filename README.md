@@ -188,6 +188,12 @@ A game update removed or renamed story flags the roadmap reads. The steps that u
 </details>
 
 <details>
+<summary>The window switches tabs, ticks boxes or scrolls on its own</summary>
+
+Fixed in 1.2.1: update the mod. Script Extender windows can be driven by the keyboard and by a game controller, and older versions of the roadmap let keys pressed for the game, or a connected controller, act on it. Untick anything that was ticked by itself (*Options > Clear all manual check-offs* removes every check-off). The roadmap is used with the mouse; with a controller only, use a touchpad or trackpad as the mouse.
+</details>
+
+<details>
 <summary>The guide says something wrong</summary>
 
 Please use the [guide correction form](../../issues/new/choose) and mention your source (bg3.wiki page, or what you saw in game).

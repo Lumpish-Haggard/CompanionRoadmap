@@ -2008,6 +2008,96 @@ def test_item_awareness():
     check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
 
 
+# Fires every handler on every element under the main window, with the arguments the
+# extender passes, and reports any that leaves the focus where it was. Trees need both
+# toggle handlers and scrolling areas (child windows) a click handler of their own.
+FIRE_ALL_HANDLERS = """
+local win = CR.UI.win
+local seen = ...
+local function focus() return rawget(win, "__focus") or 0 end
+local kinds, missing, calls = {}, {}, 0
+local function args(e, event)
+    local v, t = rawget(e, "__values"), rawget(e, "__type")
+    if event == "OnChange" then
+        if t == "Checkbox" then return { e, not v.Checked } end
+        if t == "Combo" then return { e, v.SelectedIndex or 0 } end
+        if t == "SliderInt" then return { e, v.Value } end
+    end
+    return { e }
+end
+local function visit(e)
+    if rawget(e, "__destroyed") or seen[e] then return end
+    seen[e] = true
+    local v, t = rawget(e, "__values"), rawget(e, "__type")
+    if t == "Tree" and not (v.OnExpand and v.OnCollapse) then
+        missing[#missing + 1] = "tree without toggle handlers: " .. v.Label
+    end
+    if t == "ChildWindow" and not v.OnClick then
+        missing[#missing + 1] = "scrolling area without a click handler: " .. v.Label
+    end
+    for _, event in ipairs({ "OnClick", "OnChange", "OnExpand", "OnCollapse" }) do
+        local fn = v[event]
+        if fn and not rawget(e, "__destroyed") then
+            local before = focus()
+            fn(table.unpack(args(e, event)))
+            calls = calls + 1
+            kinds[t .. "." .. event] = true
+            if focus() <= before then
+                missing[#missing + 1] = t .. " '" .. tostring(v.Label) .. "' " .. event .. " left the focus alone"
+            end
+        end
+    end
+    local children = rawget(e, "__children")
+    for i = 1, #children do visit(children[i]) end
+end
+visit(win)
+local list = {}
+for k in pairs(kinds) do list[#list + 1] = k end
+table.sort(list)
+return calls, table.concat(missing, "; "), table.concat(list, " ")
+"""
+
+
+def test_navigation_cannot_drive_the_window():
+    """The extender switches on ImGui's keyboard and gamepad navigation for every window, and the game
+    gets the same keys and buttons. The roadmap must not take the focus when it opens, must ignore
+    navigation, and every click inside it must give the focus back to the main window: otherwise
+    playing, or a drifting controller stick, switches tabs, ticks check-offs and scrolls the window
+    (GitHub issue #4)."""
+    world, sim, server, client = make(act3_camp_world())
+    for sid in ("HAL_A2_CURSE", "GALE_A2_STARS", "GALE_A3_KARSUS", "SH_A1_WOLF", "SH_A2_PARTNER"):
+        server.eval(f'CR.Server.SetOverride("{sid}", true)')
+    fire_running(client, sim)
+    client.eval("CR.UI.SetOpen(true)")
+    sim.run()
+
+    for flag in ("NoFocusOnAppearing", "NoNavInputs", "NoNavFocus", "NoItemNav", "NoTabStop"):
+        check(client.eval(f"return CR.UI.win.{flag}") is True, f"the main window sets {flag}")
+    focus = lambda: client.eval('return rawget(CR.UI.win, "__focus") or 0')
+    check(focus() == 0, "opening the window does not ask for the focus")
+
+    # every handler, twice: the first pass rebuilds pages whose new elements the second one reaches
+    seen = client.lua.table()
+    total, kinds = 0, set()
+    for _ in range(2):
+        calls, missing, found = client.eval(FIRE_ALL_HANDLERS, seen)
+        sim.run(max_ms=1000)
+        check(missing == "", f"handlers that keep no focus: {missing}")
+        total += calls
+        kinds |= set(str(found).split())
+    expected = {"Button.OnClick", "Checkbox.OnChange", "Combo.OnChange", "SliderInt.OnChange",
+                "Selectable.OnClick", "Tree.OnExpand", "Tree.OnCollapse", "ChildWindow.OnClick"}
+    check(expected <= kinds, f"every kind of handler was fired, missing {sorted(expected - kinds)}")
+    check(total > 60, f"handlers fired: {total}")
+
+    # closed, nothing asks for the focus
+    client.eval("CR.UI.SetOpen(false)")
+    before = focus()
+    client.eval("CR.UI.KeepFocus()")
+    check(focus() == before, "a closed window does not ask for the focus")
+    check(not server.errors() and not client.errors(), f"errors: {server.errors()} {client.errors()}")
+
+
 def test_data_integrity():
     _, _, server, client = make()
     errs = client.eval("return #CR.Guides.Errors")
@@ -2049,6 +2139,7 @@ TESTS = [
     test_knockout_reminder,
     test_approval_log,
     test_item_awareness,
+    test_navigation_cannot_drive_the_window,
 ]
 
 

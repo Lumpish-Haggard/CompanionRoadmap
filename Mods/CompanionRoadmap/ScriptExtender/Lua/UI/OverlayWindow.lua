@@ -58,6 +58,48 @@ local PORTRAIT_PAGE = 84
 local BASELINE_NUDGE = { 0, 3 }
 
 -- -----------------------------------------------------------------------------
+-- Keyboard and controller navigation
+-- The Script Extender switches on ImGui's keyboard and gamepad navigation for all
+-- its windows, and the game keeps receiving the same keys and buttons. The window
+-- that has the focus then also takes Space, the arrow keys, Tab, Page Up/Down and
+-- every controller button and stick: with the roadmap focused, playing the game
+-- (or a drifting stick) switched tabs, ticked check-offs, scrolled and moved the
+-- window. So the main window takes no focus when it opens and ignores navigation
+-- (buildWindow), none of its items can be reached by navigation, and because a
+-- click inside a scrolling area hands the focus to that child window, which cannot
+-- be told to ignore navigation (the extender passes a child window's flags to
+-- ImGui in swapped order), every click gives the focus back to the main window.
+-- -----------------------------------------------------------------------------
+
+--- Gives the focus back to the main window, which ignores keyboard and controller
+--- navigation.
+function UI.KeepFocus()
+    if UI.win and UI.open then pcall(function() UI.win:SetFocus() end) end
+end
+
+--- Sets an event handler (OnClick, OnChange) that also gives the focus back.
+local function on(elem, event, fn)
+    elem[event] = function(...)
+        fn(...)
+        UI.KeepFocus()
+    end
+end
+
+--- Opening or closing a tree gives the focus back.
+local function keepFocusOnToggle(tree)
+    tree.OnExpand = function() UI.KeepFocus() end
+    tree.OnCollapse = function() UI.KeepFocus() end
+    return tree
+end
+
+--- A scrolling area (child window): a click on its empty space gives the focus back.
+local function addChildWindow(parent, id)
+    local area = parent:AddChildWindow(id)
+    area.OnClick = function() UI.KeepFocus() end
+    return area
+end
+
+-- -----------------------------------------------------------------------------
 -- Helpers
 -- -----------------------------------------------------------------------------
 local refreshApprovalLog     -- defined with the page refresh below
@@ -284,7 +326,7 @@ local function addSmallButton(parent, label, onClick, sameLine)
     local b = parent:AddButton(label)
     T.SetFont(b, "small")
     if sameLine then b.SameLine = true end
-    b.OnClick = onClick
+    on(b, "OnClick", onClick)
     return b
 end
 
@@ -308,7 +350,7 @@ end
 
 local function addCheckbox(parent, label, key)
     local cb = parent:AddCheckbox(label, Set.Get(key) and true or false)
-    cb.OnChange = function(_, value) Set.Set(key, value and true or false) end
+    on(cb, "OnChange", function(_, value) Set.Set(key, value and true or false) end)
     UI.h.checks[key] = cb
     return cb
 end
@@ -318,7 +360,7 @@ local function addCombo(parent, label, choices, current, onPick)
     combo.Options = choices
     combo.SelectedIndex = math.max(0, (current or 1) - 1)
     T.SetProp(combo, "ItemWidth", 320)
-    combo.OnChange = function(_, index) onPick((tonumber(index) or 0) + 1) end
+    on(combo, "OnChange", function(_, index) onPick((tonumber(index) or 0) + 1) end)
     return combo
 end
 
@@ -334,11 +376,11 @@ local function addPercentSlider(parent, label, key)
         return nil
     end
     T.SetProp(slider, "ItemWidth", 320)
-    slider.OnChange = function(_, value)
+    on(slider, "OnChange", function(_, value)
         local v = type(value) == "table" and value[1] or value
         v = math.floor(tonumber(v) or 0)
         if v ~= Set.Get(key) then Set.Set(key, v) end
-    end
+    end)
     return slider
 end
 
@@ -405,28 +447,28 @@ local function buildOptions(parent)
     UI.h.toastY = addPercentSlider(parent, "Down (0 = top, 100 = bottom)", "toastY")
     local test = parent:AddButton("Show a test notice")
     T.SetFont(test, "small")
-    test.OnClick = function() if CR.Toasts then CR.Toasts.Preview() end end
+    on(test, "OnClick", function() if CR.Toasts then CR.Toasts.Preview() end end)
     refreshToastControls()
     parent:AddSpacing()
 
     section(parent, "Keys")
     UI.h.hotkeyText = T.Text(parent, "", T.C.text)
     UI.h.hotkeyBtn = parent:AddButton("Change hotkey")
-    UI.h.hotkeyBtn.OnClick = function()
+    on(UI.h.hotkeyBtn, "OnClick", function()
         if not CR.Hotkey then return end
         T.Update(UI.h.hotkeyText, "Press the new key combination now (Esc cancels)...", T.C.warn)
         CR.Hotkey.BeginCapture(function() UI.RefreshHotkeyText() end)
-    end
+    end)
     addCheckbox(parent, "Esc closes the roadmap", "escCloses")
     parent:AddSpacing()
 
     section(parent, "This save")
     local refresh = parent:AddButton("Refresh now")
-    refresh.OnClick = function() CR.Client.RequestRefresh(true) end
+    on(refresh, "OnClick", function() CR.Client.RequestRefresh(true) end)
     local reset = parent:AddButton("Clear all manual check-offs")
     reset.SameLine = true
     local armedAt = 0
-    reset.OnClick = function()
+    on(reset, "OnClick", function()
         local now = CR.Now()
         if now - armedAt < 4000 then
             armedAt = 0
@@ -436,7 +478,7 @@ local function buildOptions(parent)
             armedAt = now
             T.Update(reset, "Click again to confirm")
         end
-    end
+    end)
     T.Text(parent, "Check-offs are stored in your save file.", T.C.faint, "small")
     UI.h.memory = T.Text(parent, "", T.C.faint, "small")
     parent:AddSpacing()
@@ -457,7 +499,7 @@ local function buildOptions(parent)
             n = n + 1
             local cb = row:AddCell():AddCheckbox(comp.name .. "###nrOpt_" .. comp.id, false)
             T.SetFont(cb, "small")
-            cb.OnChange = function(_, checked) CR.Client.SetDeclined(comp.id, checked) end
+            on(cb, "OnChange", function(_, checked) CR.Client.SetDeclined(comp.id, checked) end)
             UI.h.noRomance[comp.id] = cb
         end
     end
@@ -469,13 +511,13 @@ local function buildOptions(parent)
     local report = parent:AddButton("Create a report file")
     UI.h.reportResult = T.Text(parent, "", T.C.faint, "small")
     T.Show(UI.h.reportResult, false)
-    report.OnClick = function()
+    on(report, "OnClick", function()
         T.Update(UI.h.reportResult, "Writing the report...", T.C.faint)
         T.Show(UI.h.reportResult, true)
         CR.Client.RequestReport(function(ok, text)
             T.Update(UI.h.reportResult, text, ok and T.C.good or T.C.warn)
         end)
-    end
+    end)
     parent:AddSpacing()
 
     section(parent, "Statuses")
@@ -562,7 +604,7 @@ local function buildSidebar()
         end
         T.SetStyle(holder, "ItemSpacing", 10 * s, 1 * s)
         entry.sel = holder:AddSelectable(comp.name .. "###sel_" .. comp.id)
-        entry.sel.OnClick = function() UI.Select(comp.id) end
+        on(entry.sel, "OnClick", function() UI.Select(comp.id) end)
         entry.info = T.Text(holder, "", T.C.dim, "small")
         if not tbl then side:AddSpacing() end
         UI.sidebar[comp.id] = entry
@@ -571,7 +613,7 @@ end
 
 local function scrollArea(parent, id, padX, padY)
     local s = T.Scale()
-    local area = parent:AddChildWindow(id)
+    local area = addChildWindow(parent, id)
     area.Size = { 0, 0 }
     T.SetProp(area, "AlwaysUseWindowPadding", true)
     T.SetStyle(area, "WindowPadding", padX * s, padY * s)
@@ -584,6 +626,12 @@ local function buildWindow()
     win.Closeable = true
     win.OnClose = function() UI.SetOpen(false) end
     T.SetProp(win, "NoCollapse", true)
+    -- no keyboard or controller navigation (see "Keyboard and controller navigation"):
+    -- no focus when it opens, navigation input ignored, and NoItemNav/NoTabStop, which
+    -- the extender pushes as item flags for everything drawn inside the window
+    for _, flag in ipairs({ "NoFocusOnAppearing", "NoNavInputs", "NoNavFocus", "NoItemNav", "NoTabStop" }) do
+        T.SetProp(win, flag, true)
+    end
     T.SetProp(win, "Scaling", "Scaled")
     local vw, vh = T.Viewport()
     pcall(function()
@@ -600,10 +648,10 @@ local function buildWindow()
     h.alert = win:AddSelectable("###crAlert")
     T.SetFont(h.alert, "small")
     T.SetColor(h.alert, T.C.warn)
-    h.alert.OnClick = function()
+    on(h.alert, "OnClick", function()
         T.SetProp(h.alert, "Selected", false)
         selectTab(h.tabWarn)
-    end
+    end)
     T.Show(h.alert, false)
     -- patch-day check: only shown when the game no longer has something the guide watches
     h.gone = T.Text(win, "", T.C.warn, "small")
@@ -628,14 +676,14 @@ local function buildWindow()
 
     -- Companions: the list on the left, the selected companion on the right
     local s = T.Scale()
-    local side = h.tabRoadmap:AddChildWindow("##crSidebar")
+    local side = addChildWindow(h.tabRoadmap, "##crSidebar")
     T.SetProp(side, "AlwaysUseWindowPadding", true)
     T.SetColor(side, { 0, 0, 0, 0.22 }, "ChildBg")
     T.SetStyle(side, "WindowPadding", 14 * s, 12 * s)
     UI.sideWin = side
     buildSidebar()
 
-    local content = h.tabRoadmap:AddChildWindow("##crContent")
+    local content = addChildWindow(h.tabRoadmap, "##crContent")
     content.SameLine = true
     content.Size = { 0, 0 }
     T.SetProp(content, "AlwaysUseWindowPadding", true)
@@ -669,7 +717,7 @@ local function buildStep(tbl, comp, step)
     T.SetProp(s.status, "PositionOffset", BASELINE_NUDGE)
     s.tip = T.Tooltip(s.status, "")
 
-    s.tree = stepCell:AddTree(step.title .. "###st_" .. step.id)
+    s.tree = keepFocusOnToggle(stepCell:AddTree(step.title .. "###st_" .. step.id))
     T.SetProp(s.tree, "SpanAvailWidth", true)
 
     local meta = stepMeta(step)
@@ -711,14 +759,14 @@ local function buildStep(tbl, comp, step)
     s.override = s.tree:AddCheckbox("I did this - mark it as done###ov_" .. step.id, false)
     T.SetFont(s.override, "small")
     T.SetColor(s.override, T.C.dim)
-    s.override.OnChange = function(_, checked) CR.Client.SetOverride(step.id, checked) end
+    on(s.override, "OnChange", function(_, checked) CR.Client.SetOverride(step.id, checked) end)
     s.tree:AddSpacing()
     return s
 end
 
 local function buildAct(parent, comp, def, page)
     local act = { def = def, steps = {} }
-    act.header = parent:AddTree(def.title .. "###act" .. def.key .. "_" .. comp.id)
+    act.header = keepFocusOnToggle(parent:AddTree(def.title .. "###act" .. def.key .. "_" .. comp.id))
     for _, flag in ipairs({ "Framed", "SpanAvailWidth", "NoTreePushOnOpen" }) do T.SetProp(act.header, flag, true) end
     T.SetFont(act.header, "heading")
     T.SetColor(act.header, T.C.gold)
@@ -750,7 +798,7 @@ local function buildCounters(parent, comp, page)
         local c = { def = counter, items = {} }
         c.label = T.Text(parent, counter.label, T.C.text, "small")
         c.bar = addBar(parent)
-        local tree = parent:AddTree("Details###cnt_" .. comp.id .. counter.id)
+        local tree = keepFocusOnToggle(parent:AddTree("Details###cnt_" .. comp.id .. counter.id))
         T.SetFont(tree, "small")
         T.SetColor(tree, T.C.dim)
         c.help = T.Text(tree, counter.help or "", T.C.dim, "italic")
@@ -819,7 +867,7 @@ local function buildPage(comp)
 
     page.approval = addBar(content)
     -- the last approval changes (Tracker/ApprovalLog.lua); a shared id keeps it folded or open on every page
-    page.alog = content:AddTree("Recent approval changes###crApprovalLog")
+    page.alog = keepFocusOnToggle(content:AddTree("Recent approval changes###crApprovalLog"))
     T.SetFont(page.alog, "small")
     T.SetColor(page.alog, T.C.dim)
     page.alogBody = page.alog:AddGroup("##crApprovalLogBody")
@@ -835,7 +883,7 @@ local function buildPage(comp)
     -- Shared IDs: folding these on one companion folds them on every page.
     if #comp.rules > 0 then
         content:AddSpacing()
-        local rules = content:AddTree("Golden rules###crRules")
+        local rules = keepFocusOnToggle(content:AddTree("Golden rules###crRules"))
         T.SetProp(rules, "DefaultOpen", true)
         T.SetColor(rules, T.C.bad)
         page.rules = buildNotes(rules, comp.rules, T.CROSS, T.C.bad)
@@ -843,13 +891,14 @@ local function buildPage(comp)
 
     -- The ways to lose any companion; the same on every page, so folded until asked for.
     if #Guides.CommonRules > 0 then
-        local common = content:AddTree("For every companion###crCommon")
+        local common = keepFocusOnToggle(content:AddTree("For every companion###crCommon"))
         T.SetColor(common, T.C.bad)
         page.common = buildNotes(common, Guides.CommonRules, T.CROSS, T.C.bad)
     end
 
     if #comp.romanceNotes > 0 then
-        local romance = content:AddTree((comp.romanceable and "Romance path" or "Romance") .. "###crRomance")
+        local romance = keepFocusOnToggle(content:AddTree((comp.romanceable and "Romance path" or "Romance")
+            .. "###crRomance"))
         T.SetColor(romance, T.C.romance)
         page.notes = buildNotes(romance, comp.romanceNotes, T.BULLET, T.C.romance)
         if comp.romanceable then
@@ -858,7 +907,7 @@ local function buildPage(comp)
                 .. " in this playthrough###nr_" .. comp.id, false)
             T.SetFont(cb, "small")
             T.SetColor(cb, T.C.dim)
-            cb.OnChange = function(_, checked) CR.Client.SetDeclined(comp.id, checked) end
+            on(cb, "OnChange", function(_, checked) CR.Client.SetDeclined(comp.id, checked) end)
             page.noRomance = cb
         end
     end
@@ -1110,10 +1159,10 @@ local function warnLink(body, item, color)
     local sel = body:AddSelectable(string.format("%s   %s%s%s   (%s)###w_%s", T.BULLET, item.comp.name,
         T.SEP_SHORT, title, string.lower(st.label), item.step.id))
     T.SetColor(sel, color or T.C.text)
-    sel.OnClick = function()
+    on(sel, "OnClick", function()
         T.SetProp(sel, "Selected", false)
         UI.JumpTo(item.comp.id, item.step.id)
-    end
+    end)
     return sel
 end
 
@@ -1250,10 +1299,10 @@ local function refreshCamp(snap)
         if step then
             local sel = body:AddSelectable(string.format("%s   %s###tn_%d_%s", T.BULLET, text, i, step.id))
             T.SetColor(sel, T.C.text)
-            sel.OnClick = function()
+            on(sel, "OnClick", function()
                 T.SetProp(sel, "Selected", false)
                 UI.JumpTo(comp.id, step.id)
-            end
+            end)
         else
             T.Bullet(body, text, T.C.dim, T.BULLET, T.C.goldDim)
         end
@@ -1289,10 +1338,10 @@ local function refreshCamp(snap)
         local sel = body:AddSelectable(string.format("%s   %s%s%s###tw_%s", T.BULLET, w.comp.name, T.SEP_SHORT,
             w.step.title, w.step.id))
         T.SetColor(sel, T.C.text)
-        sel.OnClick = function()
+        on(sel, "OnClick", function()
             T.SetProp(sel, "Selected", false)
             UI.JumpTo(w.comp.id, w.step.id)
-        end
+        end)
         local line, color = campLine(snap, w.comp, w.step, stepResult(snap, w.step.id), true)
         if line ~= "" then T.Text(body, line, color, "small") end
     end

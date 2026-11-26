@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 Nothing yet.
 
+## [1.2.1] - 2026-11-26
+
+A fix for the roadmap window acting on its own.
+
+### Fixed
+- **The window no longer reacts to the keyboard or a controller** ([#4](../../issues/4)). The Script Extender lets the keyboard and a game controller drive every mod window, while the game receives the same keys and buttons. Once the roadmap had opened, keys pressed for the game (Space, the arrow keys, Tab, Page Up/Down) or a connected controller, also one you were not holding if its stick drifts, could switch tabs, tick boxes, scroll the window or move it. The roadmap now opens without taking the keyboard and controller, ignores them, and only responds to the mouse. Esc still closes it.
+- If boxes were ticked by themselves while this happened, untick them: *I did this - mark it as done* on a step, *Not interested* on a romance, or the settings in *Options*. *Options > Clear all manual check-offs* removes every check-off at once.
+
+### Known limits
+- One window shortcut that the Script Extender gives every mod window still works after you click into the roadmap: holding X (Square on PlayStation) and moving the left stick, or Ctrl+Tab and the arrow keys, moves the window. Clicking anywhere in the game ends it.
+
 ## [1.2.0] - 2026-11-25
 
 "Camp and warnings": what plays at your next long rest, a heads-up at every point of no return, and a way to say no to a romance.
@@ -148,7 +159,8 @@ First public release. A full rebuild of an earlier prototype that could not run 
   - Wyll's romance only starts at the Tiefling party and needs Duke Ravengard alive; rescuing Mizora is what keeps Wyll himself alive.
   - Gale leaves only if you refuse the first magic item.
 
-[Unreleased]: ../../compare/v1.2.0...HEAD
+[Unreleased]: ../../compare/v1.2.1...HEAD
+[1.2.1]: ../../releases/tag/v1.2.1
 [1.2.0]: ../../releases/tag/v1.2.0
 [1.1.0]: ../../releases/tag/v1.1.0
 [1.0.3]: ../../releases/tag/v1.0.3
